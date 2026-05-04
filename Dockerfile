@@ -4,31 +4,31 @@ FROM ghcr.io/puppeteer/puppeteer:24.0.0
 # ضبط مجلد العمل
 WORKDIR /app
 
-# الانتقال لمستخدم root لضبط الصلاحيات (ضروري لحل خطأ EACCES)
+# الانتقال لـ root لفرض الصلاحيات
 USER root
 
-# نسخ ملفات الحزم أولاً لضمان الكفاءة في البناء
+# حذف أي ملفات قديمة قد تسبب تضارب في الصلاحيات
+RUN rm -rf /app/*
+
+# نسخ ملفات الحزم فقط في البداية
 COPY package*.json ./
 
-# منح صلاحيات كاملة للمستخدم pptruser على مجلد العمل
+# منح الملكية الكاملة للمستخدم pptruser قبل التثبيت
 RUN chown -R pptruser:pptruser /app
 
-# العودة للمستخدم pptruser الآمن لتنفيذ العمليات التالية
+# العودة للمستخدم الآمن
 USER pptruser
 
-# تثبيت الحزم (تم استبدال --production بـ --omit=dev بناءً على تحذير npm)
+# تثبيت الحزم (باستخدام الممارسات الموصى بها في السجلات)
 RUN npm install --omit=dev
 
-# نسخ بقية ملفات المشروع مع الحفاظ على ملكية المستخدم الصحيح
+# نسخ بقية الملفات مع التأكد من الملكية
 COPY --chown=pptruser:pptruser . .
 
-# الإعدادات البيئية المطلوبة لتشغيل البوت
+# الإعدادات البيئية
 ENV PORT=24771
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 ENV NODE_ENV=production
 
-# فتح المنفذ
 EXPOSE 24771
 
-# تشغيل الخادم
 CMD ["node", "server.js"]
