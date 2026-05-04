@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SA OutreachBot — CRM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0A0C0F; --surface:#111318; --s2:#161A23; --s3:#1a1f2e; --border:#1C2030; --blue:#4F7DF3; --green:#1DB954; --orange:#F5A623; --red:#E24B4A; --purple:#A78BFA; --text:#E2E8F0; --muted:#64748B; --mono:'JetBrains Mono',monospace; }
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+    body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; font-size:14px; line-height:1.5; min-height:100vh; }
+    header { display:flex; align-items:center; gap:12px; padding:0 24px; height:52px; background:rgba(17,19,24,0.75); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); border-bottom:1px solid rgba(79,125,243,0.15); box-shadow:0 1px 30px rgba(0,0,0,0.4); position:sticky; top:0; z-index:100; }
+    .logo { font-size:14px; font-weight:700; display:flex; align-items:center; gap:7px; }
+    .logo-icon { width:26px; height:26px; background:var(--blue); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:15px; }
+    .header-spacer { flex:1; }
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:6px 13px; border-radius:7px; border:1px solid var(--border); background:var(--s2); color:var(--text); font-size:12px; font-weight:500; cursor:pointer; transition:background .15s; text-decoration:none; }
+    .btn:hover { background:#1e2333; }
+    .btn-blue { background:var(--blue); border-color:var(--blue); color:#fff; }
+    .btn-blue:hover { background:#3d68e8; }
+    .btn-green { background:rgba(29,185,84,.12); border-color:rgba(29,185,84,.35); color:var(--green); }
+    .btn-red { background:transparent; border-color:var(--red); color:var(--red); }
+    .logout-btn { background:none; border:1px solid var(--border); border-radius:7px; color:var(--muted); font-size:12px; padding:5px 11px; cursor:pointer; }
+    .logout-btn:hover { color:var(--red); border-color:rgba(226,75,74,.4); }
+    #loginOverlay { position:fixed; inset:0; background:rgba(10,12,15,0.97); display:flex; align-items:center; justify-content:center; z-index:9999; }
+    .login-box { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px 44px; width:100%; max-width:380px; text-align:center; box-shadow:0 24px 80px rgba(0,0,0,0.6); }
+    .login-icon { width:56px; height:56px; background:rgba(79,125,243,0.15); border:1px solid rgba(79,125,243,0.3); border-radius:14px; display:inline-flex; align-items:center; justify-content:center; font-size:26px; margin-bottom:20px; }
+    .login-box h2 { font-size:20px; font-weight:700; margin-bottom:6px; }
+    .login-box p { color:var(--muted); font-size:13px; margin-bottom:24px; }
+    .pw-wrap { position:relative; margin-bottom:12px; }
+    .pw-wrap input { width:100%; background:var(--s2); border:1px solid var(--border); border-radius:9px; padding:12px 44px 12px 14px; color:var(--text); font-size:14px; outline:none; }
+    .pw-wrap input:focus { border-color:var(--blue); }
+    .pw-eye { position:absolute; right:13px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; }
+    .login-btn { width:100%; background:var(--blue); border:none; border-radius:9px; padding:12px; color:#fff; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:10px; }
+    .login-err { color:var(--red); font-size:12px; min-height:18px; }
+    main { max-width:1300px; margin:0 auto; padding:24px 20px 100px; }
+    .page-title { font-size:20px; font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:10px; }
+    .page-sub { color:var(--muted); font-size:13px; margin-bottom:22px; }
+    .stats-row { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:20px; }
+    @media(max-width:900px) { .stats-row { grid-template-columns:repeat(4,1fr); } }
+    .stat-chip { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; text-align:center; }
+    .stat-chip .n { font-family:var(--mono); font-size:22px; font-weight:700; display:block; margin-bottom:2px; }
+    .stat-chip .l { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+    .stat-chip.blue .n { color:var(--blue); }
+    .stat-chip.green .n { color:var(--green); }
+    .stat-chip.orange .n { color:var(--orange); }
+    .stat-chip.purple .n { color:var(--purple); }
+    .stat-chip.red .n { color:var(--red); }
+    .filter-bar { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+    .filter-bar select, .filter-bar input[type=text] { background:var(--s2); border:1px solid var(--border); border-radius:7px; color:var(--text); font-size:12px; padding:7px 11px; outline:none; font-family:inherit; }
+    .filter-bar input[type=text] { flex:1; min-width:180px; }
+    .filter-bar select:focus, .filter-bar input[type=text]:focus { border-color:var(--blue); }
+    .filter-spacer { flex:1; }
+    .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:20px; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; min-width:800px; }
+    thead th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:600; padding:10px 12px; border-bottom:1px solid var(--border); background:var(--s2); white-space:nowrap; }
+    thead th.sortable { cursor:pointer; user-select:none; }
+    thead th.sortable:hover { color:var(--text); }
+    tbody tr { border-bottom:1px solid rgba(28,32,48,.6); transition:background .1s; }
+    tbody tr:hover { background:rgba(79,125,243,.03); }
+    tbody tr:last-child { border-bottom:none; }
+    tbody td { padding:9px 12px; font-size:12px; vertical-align:middle; }
+    .check-col { width:36px; text-align:center; }
+    input[type="checkbox"] { accent-color:var(--blue); width:14px; height:14px; cursor:pointer; }
+    .badge { display:inline-flex; align-items:center; gap:3px; border-radius:4px; padding:2px 7px; font-size:10px; font-weight:600; white-space:nowrap; }
+    .badge-new       { background:rgba(100,116,139,.1); color:var(--muted);   border:1px solid rgba(100,116,139,.2); }
+    .badge-contacted { background:rgba(79,125,243,.1);  color:var(--blue);    border:1px solid rgba(79,125,243,.2); }
+    .badge-replied   { background:rgba(167,139,250,.1); color:var(--purple);  border:1px solid rgba(167,139,250,.2); }
+    .badge-interested{ background:rgba(29,185,84,.1);   color:var(--green);   border:1px solid rgba(29,185,84,.2); }
+    .badge-closed    { background:rgba(29,185,84,.2);   color:#16a34a;        border:1px solid rgba(29,185,84,.4); }
+    .badge-not       { background:rgba(226,75,74,.1);   color:var(--red);     border:1px solid rgba(226,75,74,.2); }
+    .stage-pill { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:11px; font-size:10px; font-weight:700; padding:0 6px; }
+    .sp0 { background:var(--s2); color:var(--muted); border:1px solid var(--border); }
+    .sp1 { background:rgba(79,125,243,.2); color:var(--blue); }
+    .sp2 { background:rgba(245,166,35,.2); color:var(--orange); }
+    .sp3 { background:rgba(167,139,250,.2); color:var(--purple); }
+    .act-btn { background:none; border:1px solid var(--border); border-radius:5px; color:var(--muted); font-size:12px; cursor:pointer; padding:3px 8px; transition:.15s; line-height:1.4; }
+    .act-btn:hover { background:var(--s2); color:var(--text); }
+    .act-btn.del:hover { color:var(--red); border-color:rgba(226,75,74,.4); }
+    .act-btn.seq:hover { color:var(--blue); border-color:rgba(79,125,243,.4); }
+    .act-btn.rev:hover { color:var(--green); border-color:rgba(29,185,84,.4); }
+    #bulkBar { display:none; position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface); border:1px solid rgba(79,125,243,.3); border-radius:12px; padding:10px 18px; align-items:center; gap:10px; box-shadow:0 8px 40px rgba(0,0,0,.6); z-index:200; flex-wrap:wrap; }
+    #bulkBar.visible { display:flex; }
+    .modal-bg { display:none; position:fixed; inset:0; background:rgba(10,12,15,.88); z-index:1000; align-items:center; justify-content:center; }
+    .modal-bg.open { display:flex; }
+    .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px 32px; width:100%; max-width:560px; max-height:92vh; overflow-y:auto; }
+    .modal h3 { font-size:16px; font-weight:700; margin-bottom:18px; }
+    .fg { margin-bottom:14px; }
+    .fg label { display:block; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; }
+    .fg input, .fg select, .fg textarea { width:100%; background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text); font-size:13px; font-family:inherit; outline:none; transition:border-color .15s; }
+    .fg input:focus, .fg select:focus, .fg textarea:focus { border-color:var(--blue); }
+    .fg textarea { resize:vertical; min-height:70px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media(max-width:560px) { .form-row { grid-template-columns:1fr; } }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+    .empty-state { text-align:center; padding:40px; color:var(--muted); font-size:12px; }
+    #toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--s3); border:1px solid var(--border); border-radius:10px; padding:12px 20px; font-size:13px; font-weight:500; white-space:nowrap; opacity:0; transition:opacity .25s,transform .25s; pointer-events:none; z-index:999; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+    .mono { font-family:var(--mono); font-size:11px; }
+  </style>
+</head>
+<body>
+
+<div id="loginOverlay">
+  <div class="login-box">
+    <div class="login-icon">📋</div>
+    <h2>CRM Access</h2>
+    <p>Enter your admin password to manage contacts</p>
+    <div class="pw-wrap">
+      <input type="password" id="loginPw" placeholder="Admin password" onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="pw-eye" onclick="var i=document.getElementById('loginPw');i.type=i.type==='password'?'text':'password'">👁</button>
+    </div>
+    <button class="login-btn" onclick="doLogin()">Open CRM</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<div id="mainContent" style="display:none">
+
+<header>
+  <div class="logo"><div class="logo-icon">⚡</div>SA <span style="color:var(--muted);font-weight:400">CRM</span></div>
+  <div style="display:flex;gap:5px;margin-left:14px">
+    <a href="/outreachbot/" class="btn" style="font-size:11px">📊 Dashboard</a>
+    <a href="/outreachbot/crm" class="btn btn-blue" style="font-size:11px">📋 CRM</a>
+    <a href="/outreachbot/settings" class="btn" style="font-size:11px">⚙ Settings</a>
+  </div>
+  <div class="header-spacer"></div>
+  <button class="btn btn-green" onclick="showAddModal()">+ Add Contact</button>
+  <button class="btn" onclick="exportCsv()">📥 Export</button>
+  <button class="logout-btn" onclick="doLogout()">Logout</button>
+</header>
+
+<main>
+  <div class="page-title">📋 Contact CRM</div>
+  <div class="page-sub">Track sequences, manage contacts, and log revenue from closed deals.</div>
+
+  <div class="stats-row">
+    <div class="stat-chip"><span class="n" id="st-total">0</span><span class="l">Total</span></div>
+    <div class="stat-chip blue"><span class="n" id="st-new">0</span><span class="l">New</span></div>
+    <div class="stat-chip orange"><span class="n" id="st-contacted">0</span><span class="l">Contacted</span></div>
+    <div class="stat-chip purple"><span class="n" id="st-replied">0</span><span class="l">Replied</span></div>
+    <div class="stat-chip green"><span class="n" id="st-interested">0</span><span class="l">Interested</span></div>
+    <div class="stat-chip green"><span class="n" id="st-closed">0</span><span class="l">Closed 💰</span></div>
+    <div class="stat-chip red"><span class="n" id="st-notint">0</span><span class="l">Not Interested</span></div>
+  </div>
+
+  <div class="filter-bar">
+    <select id="filterStatus" onchange="applyFilters()">
+      <option value="">All Statuses</option>
+      <option>New</option><option>Contacted</option><option>Replied</option>
+      <option>Interested</option><option>Closed</option><option>Not Interested</option>
+    </select>
+    <select id="filterStage" onchange="applyFilters()">
+      <option value="">All Stages</option>
+      <option value="0">Not Started</option>
+      <option value="1">Stage 1</option>
+      <option value="2">Stage 2</option>
+      <option value="3">Stage 3</option>
+    </select>
+    <input type="text" id="searchInput" placeholder="🔍 Search company, email, city..." oninput="applyFilters()">
+    <div class="filter-spacer"></div>
+    <span id="resultsCount" style="font-size:11px;color:var(--muted)"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="check-col"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+          <th class="sortable" onclick="sortBy('company')">Company</th>
+          <th>Email</th>
+          <th class="sortable" onclick="sortBy('city')">City</th>
+          <th class="sortable" onclick="sortBy('sequence_stage')">Stage</th>
+          <th class="sortable" onclick="sortBy('status')">Status</th>
+          <th>Opened</th>
+          <th>Reply</th>
+          <th class="sortable" onclick="sortBy('revenue_onetime')">Revenue</th>
+          <th>Notes</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="contactsBody">
+        <tr><td colspan="11" class="empty-state">Loading contacts…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<div id="bulkBar">
+  <span id="bulkCount" style="font-size:12px;color:var(--muted)">0 selected</span>
+  <select id="bulkStatusSel" style="background:var(--s2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:5px 9px;font-family:inherit">
+    <option value="">Change status…</option>
+    <option>New</option><option>Contacted</option><option>Replied</option>
+    <option>Interested</option><option>Closed</option><option>Not Interested</option>
+  </select>
+  <button class="btn" onclick="bulkStatus()">Apply Status</button>
+  <button class="btn btn-red" onclick="bulkDelete()">🗑 Delete</button>
+  <button class="btn" onclick="clearSelection()" style="font-size:18px;padding:4px 10px">×</button>
+</div>
+
+<!-- ADD/EDIT CONTACT MODAL -->
+<div class="modal-bg" id="contactModal">
+  <div class="modal">
+    <h3 id="modalTitle">Add Contact</h3>
+    <div class="form-row">
+      <div class="fg"><label>Company Name *</label><input id="fc-company" placeholder="Acme Dental"></div>
+      <div class="fg"><label>Contact Name</label><input id="fc-name" placeholder="John Smith"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Email *</label><input id="fc-email" type="email" placeholder="info@acmedental.com"></div>
+      <div class="fg"><label>Website</label><input id="fc-website" placeholder="https://acmedental.com"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Business Type</label><input id="fc-type" placeholder="Dental Clinic"></div>
+      <div class="fg"><label>City</label><input id="fc-city" placeholder="New York"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Status</label>
+        <select id="fc-status"><option>New</option><option>Contacted</option><option>Replied</option><option>Interested</option><option>Closed</option><option>Not Interested</option></select>
+      </div>
+      <div class="fg"><label>Sequence Stage</label>
+        <select id="fc-stage"><option value="0">Not started</option><option value="1">Stage 1 sent</option><option value="2">Stage 2 sent</option><option value="3">Stage 3 sent</option></select>
+      </div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="fc-notes" placeholder="Notes about this contact..."></textarea></div>
+    <input type="hidden" id="fc-id">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('contactModal')">Cancel</button>
+      <button class="btn btn-blue" onclick="saveContact()">💾 Save Contact</button>
+    </div>
+  </div>
+</div>
+
+<!-- REVENUE MODAL -->
+<div class="modal-bg" id="revenueModal">
+  <div class="modal" style="max-width:420px">
+    <h3>💰 Log Revenue</h3>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:18px">Contact: <strong id="rev-company" style="color:var(--text)"></strong></p>
+    <div class="form-row">
+      <div class="fg"><label>Revenue Type</label>
+        <select id="rev-type"><option value="one_time">One-Time (Website)</option><option value="recurring">Monthly Recurring (AI)</option></select>
+      </div>
+      <div class="fg"><label>Amount (USD)</label><input id="rev-amount" type="number" placeholder="1000" min="1"></div>
+    </div>
+    <div class="fg"><label>Note (optional)</label><input id="rev-note" placeholder="Website redesign project"></div>
+    <input type="hidden" id="rev-contact-id">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('revenueModal')">Cancel</button>
+      <button class="btn btn-green" onclick="saveRevenue()">💰 Save Revenue</button>
+    </div>
+  </div>
+</div>
+
+<!-- SEQUENCE MODAL -->
+<div class="modal-bg" id="seqModal">
+  <div class="modal" style="max-width:400px">
+    <h3>📧 Send Sequence Email</h3>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:18px">To: <strong id="seq-company" style="color:var(--text)"></strong></p>
+    <div class="fg"><label>Stage to Send</label>
+      <select id="seq-stage">
+        <option value="1">Stage 1 — Initial Outreach (Day 1)</option>
+        <option value="2">Stage 2 — Follow-up (Day 3)</option>
+        <option value="3">Stage 3 — Closing (Day 7)</option>
+      </select>
+    </div>
+    <input type="hidden" id="seq-contact-id">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('seqModal')">Cancel</button>
+      <button class="btn btn-blue" id="seqSendBtn" onclick="sendSequence()">📧 Send Email</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+</div>
+
+<script>
+var BASE = '/outreachbot';
+var ADMIN_TOKEN = '';
+var _contacts = [];
+var _filtered = [];
+var _selected = new Set();
+var _sortKey = 'created_at';
+var _sortAsc = false;
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function authH() { return { 'Content-Type':'application/json', 'x-admin-token':ADMIN_TOKEN }; }
+
+async function doLogin() {
+  var pw = document.getElementById('loginPw').value.trim();
+  var err = document.getElementById('loginErr');
+  if (!pw) { err.textContent = 'Enter your admin password.'; return; }
+  try {
+    var r = await fetch(BASE+'/api/settings/verify', { headers:{'x-admin-token':pw} });
+    var d = await r.json();
+    if (d.ok) {
+      ADMIN_TOKEN = pw;
+      sessionStorage.setItem('ob_admin', pw);
+      document.getElementById('loginOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+      loadContacts();
+    } else { err.textContent = 'Incorrect password.'; }
+  } catch(e) { err.textContent = 'Connection error.'; }
+}
+
+function doLogout() {
+  ADMIN_TOKEN = ''; sessionStorage.removeItem('ob_admin');
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('mainContent').style.display = 'none';
+}
+
+async function loadContacts() {
+  try {
+    var r = await fetch(BASE+'/api/contacts', { headers:{'x-admin-token':ADMIN_TOKEN} });
+    if (r.status===401) { doLogout(); return; }
+    _contacts = await r.json();
+    applyFilters();
+  } catch(e) {
+    document.getElementById('contactsBody').innerHTML = '<tr><td colspan="11" class="empty-state">Failed to load. Check server.</td></tr>';
+  }
+}
+
+function applyFilters() {
+  var status = document.getElementById('filterStatus').value;
+  var stage  = document.getElementById('filterStage').value;
+  var q      = document.getElementById('searchInput').value.toLowerCase();
+  _filtered = _contacts.filter(function(c) {
+    if (status && c.status !== status) return false;
+    if (stage !== '' && String(c.sequence_stage) !== stage) return false;
+    if (q && !['company','email','city','contact_name'].some(function(k){ return (c[k]||'').toLowerCase().includes(q); })) return false;
+    return true;
+  });
+  _filtered.sort(function(a,b) {
+    var va = a[_sortKey]||0, vb = b[_sortKey]||0;
+    if (typeof va === 'number') return _sortAsc ? va-vb : vb-va;
+    return _sortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+  });
+  renderTable(_filtered);
+  renderStats(_contacts);
+  document.getElementById('resultsCount').textContent = _filtered.length + ' / ' + _contacts.length;
+}
+
+function sortBy(k) { if(_sortKey===k) _sortAsc=!_sortAsc; else { _sortKey=k; _sortAsc=true; } applyFilters(); }
+
+function statusBadge(s) {
+  var cls={'New':'new','Contacted':'contacted','Replied':'replied','Interested':'interested','Closed':'closed','Not Interested':'not'}[s]||'new';
+  return '<span class="badge badge-'+cls+'">'+esc(s||'New')+'</span>';
+}
+function stagePill(n) {
+  if (!n) return '<span class="stage-pill sp0">—</span>';
+  var cls=['','sp1','sp2','sp3'][n]||'sp0';
+  return '<span class="stage-pill '+cls+'">S'+n+'</span>';
+}
+function sentimentIcon(s) { return {interested:'🟢',question:'🟡',not_interested:'🔴',other:'⚪'}[s]||''; }
+
+function renderTable(contacts) {
+  var tb = document.getElementById('contactsBody');
+  if (!contacts.length) { tb.innerHTML='<tr><td colspan="11" class="empty-state">No contacts match your filters.</td></tr>'; return; }
+  tb.innerHTML = contacts.map(function(c) {
+    var rev = (c.revenue_onetime||0)+(c.revenue_recurring||0);
+    var revStr = rev>0 ? '<span style="color:var(--green);font-family:var(--mono)">\$'+rev.toLocaleString()+'</span>' : '<span style="color:var(--muted)">—</span>';
+    var openStr = c.opened ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--muted)">—</span>';
+    var replyStr = c.replied ? (sentimentIcon(c.reply_sentiment)||'✓') : '<span style="color:var(--muted)">—</span>';
+    var notes = c.notes ? '<span title="'+esc(c.notes)+'" style="color:var(--muted);cursor:help">📝</span>' : '';
+    var checked = _selected.has(c.id) ? 'checked' : '';
+    return '<tr>'
+      +'<td class="check-col"><input type="checkbox" '+checked+' onchange="toggleSelect(\''+c.id+'\')" ></td>'
+      +'<td><div style="font-weight:600;color:var(--text);white-space:nowrap">'+esc(c.company)+'</div>'+(c.contact_name?'<div style="font-size:10px;color:var(--muted)">'+esc(c.contact_name)+'</div>':'')+'</td>'
+      +'<td class="mono">'+esc(c.email||'—')+'</td>'
+      +'<td style="white-space:nowrap">'+esc(c.city||'—')+'</td>'
+      +'<td style="text-align:center">'+stagePill(c.sequence_stage)+'</td>'
+      +'<td>'+statusBadge(c.status||'New')+'</td>'
+      +'<td style="text-align:center">'+openStr+'</td>'
+      +'<td style="text-align:center">'+replyStr+'</td>'
+      +'<td>'+revStr+'</td>'
+      +'<td style="text-align:center">'+notes+'</td>'
+      +'<td><div style="display:flex;gap:3px">'
+        +'<button class="act-btn seq" onclick="showSeqModal(\''+c.id+'\',\''+esc(c.company)+'\')" title="Send email">📧</button>'
+        +'<button class="act-btn rev" onclick="showRevModal(\''+c.id+'\',\''+esc(c.company)+'\')" title="Log revenue">💰</button>'
+        +'<button class="act-btn" onclick="showEditModal(\''+c.id+'\')" title="Edit">✏</button>'
+        +'<button class="act-btn del" onclick="deleteContact(\''+c.id+'\',\''+esc(c.company)+'\')" title="Delete">🗑</button>'
+      +'</div></td>'
+      +'</tr>';
+  }).join('');
+}
+
+function renderStats(cs) {
+  var s={total:cs.length,new:0,contacted:0,replied:0,interested:0,closed:0,notint:0};
+  cs.forEach(function(c){ var st=(c.status||'New'); if(st==='New')s.new++; else if(st==='Contacted')s.contacted++; else if(st==='Replied')s.replied++; else if(st==='Interested')s.interested++; else if(st==='Closed')s.closed++; else if(st==='Not Interested')s.notint++; });
+  ['total','new','contacted','replied','interested','closed','notint'].forEach(function(k){ var el=document.getElementById('st-'+k); if(el)el.textContent=s[k]; });
+}
+
+function toggleSelect(id) { _selected.has(id)?_selected.delete(id):_selected.add(id); updateBulkBar(); }
+function toggleSelectAll() { var all=document.getElementById('selectAll').checked; _filtered.forEach(function(c){all?_selected.add(c.id):_selected.delete(c.id);}); document.querySelectorAll('tbody input[type=checkbox]').forEach(function(cb){cb.checked=all;}); updateBulkBar(); }
+function clearSelection() { _selected.clear(); document.querySelectorAll('input[type=checkbox]').forEach(function(cb){cb.checked=false;}); updateBulkBar(); }
+function updateBulkBar() { var bar=document.getElementById('bulkBar'); if(_selected.size>0){bar.classList.add('visible');document.getElementById('bulkCount').textContent=_selected.size+' selected';}else{bar.classList.remove('visible');} }
+
+async function bulkDelete() {
+  if (!_selected.size||!confirm('Delete '+_selected.size+' contacts?')) return;
+  await fetch(BASE+'/api/contacts/bulk-delete',{method:'POST',headers:authH(),body:JSON.stringify({ids:[..._selected]})});
+  showToast('🗑 Deleted '+_selected.size+' contacts'); clearSelection(); loadContacts();
+}
+async function bulkStatus() {
+  var status=document.getElementById('bulkStatusSel').value;
+  if (!status||!_selected.size) return;
+  await fetch(BASE+'/api/contacts/bulk-status',{method:'POST',headers:authH(),body:JSON.stringify({ids:[..._selected],status})});
+  showToast('✓ Updated '+_selected.size+' to '+status); clearSelection(); loadContacts();
+}
+
+function showAddModal() {
+  document.getElementById('modalTitle').textContent='Add Contact';
+  document.getElementById('fc-id').value='';
+  ['company','name','email','website','type','city','notes'].forEach(function(k){var el=document.getElementById('fc-'+k);if(el)el.value='';});
+  document.getElementById('fc-status').value='New'; document.getElementById('fc-stage').value='0';
+  openModal('contactModal');
+}
+function showEditModal(id) {
+  var c=_contacts.find(function(x){return x.id===id;});
+  if(!c)return;
+  document.getElementById('modalTitle').textContent='Edit Contact';
+  document.getElementById('fc-id').value=c.id;
+  document.getElementById('fc-company').value=c.company||'';
+  document.getElementById('fc-name').value=c.contact_name||'';
+  document.getElementById('fc-email').value=c.email||'';
+  document.getElementById('fc-website').value=c.website||'';
+  document.getElementById('fc-type').value=c.business_type||'';
+  document.getElementById('fc-city').value=c.city||'';
+  document.getElementById('fc-notes').value=c.notes||'';
+  document.getElementById('fc-status').value=c.status||'New';
+  document.getElementById('fc-stage').value=String(c.sequence_stage||0);
+  openModal('contactModal');
+}
+async function saveContact() {
+  var id=document.getElementById('fc-id').value;
+  var company=document.getElementById('fc-company').value.trim();
+  if(!company){showToast('Company name required','err');return;}
+  var payload={company,contact_name:document.getElementById('fc-name').value.trim(),email:document.getElementById('fc-email').value.trim(),website:document.getElementById('fc-website').value.trim(),business_type:document.getElementById('fc-type').value.trim(),city:document.getElementById('fc-city').value.trim(),notes:document.getElementById('fc-notes').value.trim(),status:document.getElementById('fc-status').value,sequence_stage:parseInt(document.getElementById('fc-stage').value)||0};
+  var r=await fetch(id?BASE+'/api/contacts/'+id:BASE+'/api/contacts',{method:id?'PUT':'POST',headers:authH(),body:JSON.stringify(payload)});
+  if(r.ok){showToast(id?'✓ Contact updated':'✓ Contact added');closeModal('contactModal');loadContacts();}else{showToast('✕ Save failed','err');}
+}
+async function deleteContact(id,company) {
+  if(!confirm('Delete '+company+'?'))return;
+  await fetch(BASE+'/api/contacts/'+id,{method:'DELETE',headers:authH()});
+  showToast('🗑 '+company+' deleted'); loadContacts();
+}
+
+function showRevModal(id,company) {
+  document.getElementById('rev-contact-id').value=id;
+  document.getElementById('rev-company').textContent=company;
+  document.getElementById('rev-amount').value=''; document.getElementById('rev-note').value='';
+  openModal('revenueModal');
+}
+async function saveRevenue() {
+  var id=document.getElementById('rev-contact-id').value;
+  var type=document.getElementById('rev-type').value;
+  var amount=parseFloat(document.getElementById('rev-amount').value);
+  if(!amount||amount<=0){showToast('Enter valid amount','err');return;}
+  var r=await fetch(BASE+'/api/revenue',{method:'POST',headers:authH(),body:JSON.stringify({contactId:id,type,amount,note:document.getElementById('rev-note').value})});
+  if(r.ok){showToast('💰 Revenue saved!');closeModal('revenueModal');loadContacts();}else{showToast('✕ Failed','err');}
+}
+
+function showSeqModal(id,company) {
+  document.getElementById('seq-contact-id').value=id;
+  document.getElementById('seq-company').textContent=company;
+  var c=_contacts.find(function(x){return x.id===id;});
+  if(c)document.getElementById('seq-stage').value=String(Math.min((c.sequence_stage||0)+1,3)||1);
+  openModal('seqModal');
+}
+async function sendSequence() {
+  var btn=document.getElementById('seqSendBtn');
+  btn.disabled=true; btn.textContent='⏳ Sending…';
+  var contactId=document.getElementById('seq-contact-id').value;
+  var stage=document.getElementById('seq-stage').value;
+  try {
+    var r=await fetch(BASE+'/api/sequence/send',{method:'POST',headers:authH(),body:JSON.stringify({contactId,stage:parseInt(stage)})});
+    var d=await r.json();
+    if(r.ok){showToast('✅ Stage '+stage+' sent!');closeModal('seqModal');loadContacts();}
+    else{showToast('✕ '+(d.error||'Send failed'),'err');}
+  } catch(e){showToast('✕ Network error','err');}
+  btn.disabled=false; btn.textContent='📧 Send Email';
+}
+
+function exportCsv() {
+  fetch(BASE+'/api/contacts/export/csv',{headers:{'x-admin-token':ADMIN_TOKEN}}).then(function(r){return r.blob();}).then(function(b){var u=URL.createObjectURL(b);var a=document.createElement('a');a.href=u;a.download='contacts_'+Date.now()+'.csv';a.click();URL.revokeObjectURL(u);});
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showToast(msg,type) {
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(0);background:'+(type==='err'?'rgba(226,75,74,.08)':'rgba(29,185,84,.08)')+';border:1px solid '+(type==='err'?'rgba(226,75,74,.4)':'rgba(29,185,84,.4)')+';border-radius:10px;padding:12px 20px;font-size:13px;font-weight:500;white-space:nowrap;opacity:1;pointer-events:none;z-index:999;color:'+(type==='err'?'var(--red)':'var(--green)')+';transition:opacity .25s';
+  setTimeout(function(){t.style.opacity='0';},3000);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var stored=sessionStorage.getItem('ob_admin');
+  if(stored){
+    ADMIN_TOKEN=stored;
+    fetch(BASE+'/api/settings/verify',{headers:{'x-admin-token':stored}}).then(function(r){return r.json();}).then(function(d){
+      if(d.ok){document.getElementById('loginOverlay').style.display='none';document.getElementById('mainContent').style.display='block';loadContacts();}
+    }).catch(function(){});
+  }
+  document.querySelectorAll('.modal-bg').forEach(function(bg){bg.addEventListener('click',function(e){if(e.target===bg)bg.classList.remove('open');});});
+});
+</script>
+</body>
+</html>

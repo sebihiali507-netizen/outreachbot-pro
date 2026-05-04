@@ -1,0 +1,325 @@
+I want to upgrade my OutreachBot system on Replit with the following complete features. Build everything professionally and make it production-ready.
+
+═══════════════════════════════════════
+PART 1: EMAIL SEQUENCES (3-Stage Follow-up)
+═══════════════════════════════════════
+
+Add a full automated email sequence system with 3 stages:
+
+STAGE 1 — Initial Outreach (Day 1):
+Subject: "[Company Name] — found 3 issues costing you clients"
+
+Body:
+"Hi [First Name],
+
+I was researching [business type] businesses in [city] and audited your website.
+
+I found 3 specific problems:
+
+① No instant booking system
+→ Clients who can't book in 60 seconds leave.
+
+② Site loads in [X] seconds on mobile
+→ Google buries slow sites. You're invisible to 70% of searches.
+
+③ No after-hours response
+→ 40% of clients reach out after 6PM. They're going to whoever answers first.
+
+Conservative estimate: you're losing $2,000–$3,500/month in missed clients right now.
+
+I built a quick mock-up showing exactly what [Company Name] would look like fixed — plus an AI receptionist that books, answers, and follows up 24/7.
+
+No cost. No commitment. Just want to show you what's possible.
+
+Worth a 10-minute look?
+
+— [Sender Name]"
+
+---
+
+STAGE 2 — Follow-up (Day 3, no reply):
+Subject: "Re: [Company Name] — still worth sharing"
+
+Body:
+"Hi [First Name],
+
+Just following up in case this got buried.
+
+I finished the mock-up for [Company Name].
+
+Took me about 2 hours — figured I'd share it whether you use it or not.
+
+If it's useful, great. If not, no worries at all.
+
+— [Sender Name]"
+
+---
+
+STAGE 3 — Closing (Day 7, still no reply):
+Subject: "Last note — [Company Name]"
+
+Body:
+"Hi [First Name],
+
+Here's what I'm proposing:
+
+Week 1: New professional website — live
+Week 2: AI receptionist — answers, books, follows up 24/7
+
+Investment:
+→ Website: $1,000 one-time
+→ AI Receptionist: $300/month
+
+If the AI closes just 2 extra clients/month at your average rate — it pays for itself in the first week.
+
+I can start Monday.
+
+Want to move forward?
+
+— [Sender Name]"
+
+---
+
+SEQUENCE LOGIC:
+- Track email stage per contact (1, 2, or 3)
+- Auto-send Stage 2 if no reply after 3 days
+- Auto-send Stage 3 if no reply after 7 days
+- Stop sequence immediately if contact replies
+- Never send more than 3 emails per contact
+- Log all sequence activity in dashboard
+
+═══════════════════════════════════════
+PART 2: A/B TESTING SYSTEM
+═══════════════════════════════════════
+
+Add A/B testing for subject lines:
+
+Variant A: "[Company Name] — found 3 issues costing you clients"
+Variant B: "Quick question about [Company Name]'s website"  
+Variant C: "I built something for [Company Name] — free to look"
+
+- Split contacts equally between A, B, C
+- Track open rate per variant
+- Track reply rate per variant
+- Show winner automatically after 100 sends
+- Display A/B results in dashboard with clear winner badge
+
+═══════════════════════════════════════
+PART 3: AI PERSONALIZATION ENGINE
+═══════════════════════════════════════
+
+Before sending each email, AI must:
+
+1. Research the company website automatically
+2. Find their actual page load speed
+3. Identify if they have booking system or not
+4. Identify if they have live chat or not
+5. Generate personalized pain points based on findings
+6. Insert real specific numbers (not generic)
+7. Make every email feel 100% hand-written
+
+Use Claude API for personalization with this system prompt:
+"You are an expert web auditor. Given a company name, website URL, and business type, analyze their digital presence and identify 3 specific problems costing them clients. Return specific numbers and real issues. Write in a natural, human tone. Never sound like a bot."
+
+═══════════════════════════════════════
+PART 4: DASHBOARD UPGRADES
+═══════════════════════════════════════
+
+Upgrade the dashboard to show:
+
+MAIN STATS ROW:
+- Total Found
+- Emails Sent (Stage 1/2/3 breakdown)
+- Open Rate %
+- Reply Rate %
+- Interested (replied positively)
+- Closed (became clients)
+- Revenue Tracked ($)
+
+NEW SECTIONS:
+
+① Pipeline View:
+- Contacted → Opened → Replied → Interested → Closed
+- Show count and % at each stage
+- Color coded (red → yellow → green)
+
+② A/B Test Results Panel:
+- Subject A vs B vs C
+- Open rate per variant
+- Reply rate per variant
+- Winner badge on best performer
+
+③ Sequence Tracker:
+- How many contacts at Stage 1
+- How many at Stage 2
+- How many at Stage 3
+- How many completed (all 3 sent)
+- How many replied and stopped
+
+④ Revenue Dashboard:
+- Manual input: mark contact as "Closed" + amount
+- Show total one-time revenue
+- Show total monthly recurring revenue
+- Show projected annual recurring revenue
+- Simple bar chart by month
+
+⑤ Live Activity Feed (existing, keep it):
+- Show all outreach activity in real time
+
+═══════════════════════════════════════
+PART 5: REPLY DETECTION SYSTEM
+═══════════════════════════════════════
+
+Connect to Gmail/SMTP to detect replies:
+
+- Check for replies every 30 minutes automatically
+- When reply detected:
+  → Stop sequence for that contact immediately
+  → Mark contact as "Replied" in dashboard
+  → Send me (admin) instant notification email
+  → AI analyzes reply sentiment (interested/not interested/question)
+  → Show sentiment badge in dashboard
+
+Sentiment categories:
+- 🟢 Interested — positive reply, wants to know more
+- 🟡 Question — asking for details
+- 🔴 Not Interested — decline or unsubscribe
+- ⚪ Other — unclear
+
+═══════════════════════════════════════
+PART 6: SERVICES SHOWCASE PAGE
+═══════════════════════════════════════
+
+Add a public-facing page at /services that acts as our landing page:
+
+HEADLINE:
+"We Fix Websites & Install AI Receptionists
+That Book Clients While You Sleep"
+
+SERVICES SECTION:
+
+Service 1 — Professional Website Redesign
+- "From outdated to outstanding in 7 days"
+- Price: Starting at $1,000
+- What's included:
+  ✓ Modern mobile-first design
+  ✓ Fast loading (under 2 seconds)
+  ✓ SEO optimized
+  ✓ Booking system integrated
+  ✓ 30 days support
+
+Service 2 — AI Receptionist
+- "Never miss a client again — 24/7 automated"
+- Price: $300/month
+- What's included:
+  ✓ Answers client questions instantly
+  ✓ Books appointments automatically
+  ✓ Sends confirmation emails
+  ✓ Follows up with leads
+  ✓ Works while you sleep
+
+SOCIAL PROOF SECTION:
+- Placeholder for 3 testimonials (easy to edit)
+- Results counter: "X websites improved | X clients booked"
+
+CTA SECTION:
+"Get Your Free Website Audit"
+- Simple form: Name, Email, Website URL
+- On submit: sends me notification + auto-reply to prospect
+
+DESIGN:
+- Dark professional theme matching dashboard
+- Mobile responsive
+- Fast loading
+- Clean modern fonts
+
+═══════════════════════════════════════
+PART 7: CRM SYSTEM
+═══════════════════════════════════════
+
+Add a simple CRM to track all contacts:
+
+CONTACTS TABLE:
+- Company Name
+- Contact Name  
+- Email
+- Business Type
+- City
+- Website URL
+- Current Stage (1/2/3)
+- Last Email Sent (date)
+- Status (New/Contacted/Replied/Interested/Closed/Not Interested)
+- Revenue (if closed)
+- Notes field
+- Date Added
+
+FEATURES:
+- Search and filter contacts
+- Sort by any column
+- Export to CSV
+- Manually add contacts
+- Manually update status
+- Mark as closed + add revenue amount
+- Bulk actions (delete, change status, etc.)
+
+═══════════════════════════════════════
+PART 8: SETTINGS UPGRADES
+═══════════════════════════════════════
+
+Add to settings page:
+
+SEQUENCE SETTINGS:
+- Days between Stage 1 and 2 (default: 3)
+- Days between Stage 2 and 3 (default: 4)
+- Enable/disable auto-sequence
+- Edit email templates for all 3 stages
+
+PRICING SETTINGS:
+- Website price (shown in Stage 3 email)
+- Monthly recurring price (shown in Stage 3 email)
+- Auto-updates in all email templates
+
+SERVICE INFO:
+- Sender name
+- Company name
+- Services offered
+- Calendly link (optional — added to emails)
+
+AI SETTINGS:
+- Claude API key field
+- Personalization level (Basic/Advanced)
+- Enable/disable AI personalization
+
+═══════════════════════════════════════
+TECHNICAL REQUIREMENTS
+═══════════════════════════════════════
+
+- Keep all existing OutreachBot functionality
+- Keep existing SA branding
+- Keep existing SMTP pool system
+- Keep existing Serper API search
+- All new features must work with existing architecture
+- Database: use SQLite for CRM and sequence tracking
+- No breaking changes to current working features
+- All pages mobile responsive
+- Dark theme consistent throughout
+- Error handling on all new features
+- Loading states on all async operations
+
+═══════════════════════════════════════
+DELIVERY ORDER
+═══════════════════════════════════════
+
+Build in this order:
+1. Database schema for CRM + sequences
+2. Sequence logic + follow-up automation
+3. Reply detection system
+4. Dashboard upgrades
+5. A/B testing system
+6. CRM page
+7. Services landing page (/services)
+8. Settings upgrades
+9. AI personalization engine
+10. Final testing + bug fixes
+
+Start with Part 1 and confirm each part works before moving to the next.

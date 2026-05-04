@@ -418,18 +418,26 @@ function togglePassField(btn, inputId) {
 
 // ── GENERAL + KEYS TABLES ───────────────────────────────────
 var GENERAL_FIELDS = [
-  { key: 'SENDER_NAME',           label: 'Sender Display Name',   desc: 'Name shown in outreach emails',             placeholder: 'SA' },
-  { key: 'DAILY_EMAIL_CAP',       label: 'Daily Email Cap (total)',desc: 'Max emails sent per day across all accounts', placeholder: '200' },
-  { key: 'PER_ACCOUNT_DAILY_CAP', label: 'Per-Account Daily Cap', desc: 'Max emails per SMTP account per day',        placeholder: '100' },
-  { key: 'CRON_SCHEDULE',         label: 'Cron Schedule',         desc: 'When to auto-send (cron expression)',        placeholder: '*/2 * * * *' },
-  { key: 'EMAIL_DELAY_MIN_MS',    label: 'Min Delay (ms)',        desc: 'Minimum pause between emails',               placeholder: '12000' },
-  { key: 'EMAIL_DELAY_MAX_MS',    label: 'Max Delay (ms)',        desc: 'Maximum pause between emails',               placeholder: '35000' },
+  { key: 'SENDER_NAME',           label: 'Sender Display Name',    desc: 'Name shown in outreach emails',              placeholder: 'SA' },
+  { key: 'DAILY_EMAIL_CAP',       label: 'Daily Email Cap (total)',desc: 'Max emails sent per day across all accounts',  placeholder: '200' },
+  { key: 'PER_ACCOUNT_DAILY_CAP', label: 'Per-Account Daily Cap',  desc: 'Max emails per SMTP account per day',         placeholder: '100' },
+  { key: 'CRON_SCHEDULE',         label: 'Cron Schedule',          desc: 'When to auto-send (cron expression)',         placeholder: '*/2 * * * *' },
+  { key: 'EMAIL_DELAY_MIN_MS',    label: 'Min Delay (ms)',         desc: 'Minimum pause between emails',                placeholder: '12000' },
+  { key: 'EMAIL_DELAY_MAX_MS',    label: 'Max Delay (ms)',         desc: 'Maximum pause between emails',                placeholder: '35000' },
+  { key: 'SEQ_DAYS_1_TO_2',       label: 'Days — Stage 1 → 2',    desc: 'Days before sending Stage 2 follow-up',       placeholder: '3' },
+  { key: 'SEQ_DAYS_2_TO_3',       label: 'Days — Stage 2 → 3',    desc: 'Days before sending Stage 3 closing email',   placeholder: '4' },
+  { key: 'PRICING_WEBSITE',       label: 'Website Price',          desc: 'Price shown in Stage 3 closing email',        placeholder: '$1,000' },
+  { key: 'PRICING_MONTHLY',       label: 'AI Monthly Price',       desc: 'Monthly price shown in Stage 3 closing email',placeholder: '$300' },
+  { key: 'CALENDLY_LINK',         label: 'Calendly Link',          desc: 'Optional booking link appended to emails',    placeholder: 'https://calendly.com/your-link' },
 ];
 
 var KEYS_FIELDS = [
-  { key: 'SERPER_API_KEY',   label: 'Serper API Key',  desc: 'API key for lead search (Google Maps)',  placeholder: 'your-serper-key',     sensitive: true },
-  { key: 'GEMINI_API_KEY',   label: 'Gemini API Key',  desc: 'Google AI key for AI-generated emails', placeholder: 'AIza…',               sensitive: true },
-  { key: 'ADMIN_PASSWORD',   label: 'Admin Password',  desc: 'Password to access this settings page',  placeholder: 'sa2024',              sensitive: true },
+  { key: 'SERPER_API_KEY',   label: 'Serper API Key',    desc: 'API key for lead search (Google Maps)',          placeholder: 'your-serper-key',         sensitive: true },
+  { key: 'GEMINI_API_KEY',   label: 'Gemini API Key',    desc: 'Google AI key for AI-generated emails',         placeholder: 'AIza…',                   sensitive: true },
+  { key: 'ADMIN_PASSWORD',   label: 'Admin Password',    desc: 'Password to access this settings page',          placeholder: 'sa2024',                  sensitive: true },
+  { key: 'ADMIN_EMAIL',      label: 'Admin Email',       desc: 'Your email — get notified when a lead replies',  placeholder: 'you@gmail.com',           sensitive: false },
+  { key: 'IMAP_HOST',        label: 'IMAP Host',         desc: 'IMAP server for reply detection',                placeholder: 'imap.gmail.com',          sensitive: false },
+  { key: 'IMAP_PORT',        label: 'IMAP Port',         desc: 'IMAP port (993 for SSL)',                        placeholder: '993',                     sensitive: false },
 ];
 
 var generalValues = {};

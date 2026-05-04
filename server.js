@@ -10,6 +10,12 @@ const cors = require('cors');
 const cron = require('node-cron');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+// ── NEW MODULES ───────────────────────────────────────────────
+const crmDb = require('./db');
+const registerApiRoutes = require('./api-routes');
+const { runSequenceFollowUps, clearTransporterCache } = require('./sequences');
+const { checkReplies } = require('./reply-detector');
+
 // ── GEMINI AI CLIENT ──────────────────────────────────────────
 let geminiAI = null;
 function getGeminiClient() {
@@ -183,6 +189,8 @@ const SENSITIVE_KEYS = new Set([
 const SETTINGS_KEYS = [
   'SENDER_NAME','DAILY_EMAIL_CAP','PER_ACCOUNT_DAILY_CAP','CRON_SCHEDULE',
   'EMAIL_DELAY_MIN_MS','EMAIL_DELAY_MAX_MS','GEMINI_API_KEY','SERPER_API_KEY','ADMIN_PASSWORD',
+  'SEQ_DAYS_1_TO_2','SEQ_DAYS_2_TO_3','PRICING_WEBSITE','PRICING_MONTHLY',
+  'CALENDLY_LINK','ADMIN_EMAIL','IMAP_HOST','IMAP_PORT',
   'SMTP_USER','SMTP_PASS','SMTP_HOST','SMTP_PORT',
   ...Array.from({length:10},(_,i)=>[`SMTP_USER_${i+1}`,`SMTP_PASS_${i+1}`]).flat()
 ];
@@ -1131,6 +1139,25 @@ async function runBot() {
   }
 
   addToQueue(queueItems);
+
+  // Sync queued leads to CRM contacts table
+  try {
+    for (const lead of queueItems) {
+      if (lead.email) {
+        crmDb.upsertContact({
+          id: lead.id, company: lead.company, contact_name: '',
+          email: lead.email, business_type: lead.sector || lead.businessType || '',
+          city: lead.city || '', website: lead.website || '',
+          sequence_stage: 0, sequence_stopped: 0, last_email_sent: null,
+          status: 'New', revenue_onetime: 0, revenue_recurring: 0,
+          notes: '', ab_variant: '', opened: 0, replied: 0,
+          reply_sentiment: '', lead_id: lead.id,
+          created_at: new Date().toISOString()
+        });
+      }
+    }
+  } catch (crmErr) { console.error('[CRM] Sync error:', crmErr.message); }
+
   currentStats.phase = 'queued';
 
   const campaign = { id:campaignId, startedAt, completedAt:new Date().toISOString(), status:botAborted?'aborted':'queued', stats:{...currentStats} };
@@ -1502,6 +1529,29 @@ app.get('/outreachbot/settings', (req, res) => res.sendFile(path.join(__dirname,
 
 app.get('/outreachbot/',  (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/outreachbot',   (req, res) => res.redirect('/outreachbot/'));
+
+// ── NEW API ROUTES ────────────────────────────────────────────
+registerApiRoutes(app, { getAccountPool, broadcast, adminAuthMiddleware });
+
+// ── SEQUENCE FOLLOW-UP SCHEDULER (every 30 min) ───────────────
+cron.schedule('*/30 * * * *', async () => {
+  const seqSettings = {
+    senderName:     process.env.SENDER_NAME      || 'SA',
+    pricingWebsite: process.env.PRICING_WEBSITE  || '$1,000',
+    pricingMonthly: process.env.PRICING_MONTHLY  || '$300',
+    calendlyLink:   process.env.CALENDLY_LINK    || '',
+    seqDays1to2:    parseInt(process.env.SEQ_DAYS_1_TO_2 || '3'),
+    seqDays2to3:    parseInt(process.env.SEQ_DAYS_2_TO_3 || '4'),
+  };
+  try { await runSequenceFollowUps(getAccountPool, broadcast, seqSettings); }
+  catch(e) { console.error('[Sequence] Scheduler error:', e.message); }
+});
+
+// ── REPLY DETECTOR (every 30 min, offset 15 min) ─────────────
+cron.schedule('15,45 * * * *', async () => {
+  try { await checkReplies(getAccountPool, broadcast); }
+  catch(e) { console.error('[Reply] Detector error:', e.message); }
+});
 
 const PORT = process.env.PORT || 24771;
 app.listen(PORT, () => {

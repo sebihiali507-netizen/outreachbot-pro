@@ -25,6 +25,29 @@
     body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; min-height: 100vh; }
     a { color: inherit; text-decoration: none; }
 
+    /* ── PIPELINE ── */
+    .pipe-row { display:flex; align-items:center; gap:0; overflow-x:auto; padding-bottom:4px; }
+    .pipe-stage { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:100px; padding:12px 16px; border-radius:10px; text-align:center; flex:1; }
+    .pipe-n { font-family:var(--mono); font-size:24px; font-weight:700; line-height:1; }
+    .pipe-l { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-top:4px; }
+    .pipe-pct { font-size:10px; color:var(--muted); margin-top:2px; }
+    .pipe-arrow { color:var(--muted); font-size:18px; padding:0 6px; flex-shrink:0; }
+    .seq-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:14px; }
+    @media(max-width:600px) { .seq-grid { grid-template-columns:repeat(3,1fr); } .pipe-stage { min-width:70px; } }
+    .seq-card { background:var(--s3); border:1px solid var(--border); border-radius:8px; padding:10px; text-align:center; }
+    .seq-card .n { font-family:var(--mono); font-size:20px; font-weight:700; display:block; }
+    .seq-card .l { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-top:2px; }
+
+    /* ── A/B TABLE ── */
+    .winner-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(29,185,84,.15); border:1px solid rgba(29,185,84,.35); color:var(--green); border-radius:6px; padding:2px 8px; font-size:10px; font-weight:700; }
+
+    /* ── REVENUE ── */
+    .rev-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+    @media(max-width:600px) { .rev-grid { grid-template-columns:repeat(2,1fr); } }
+    .rev-card { background:var(--s3); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center; }
+    .rev-card .n { font-family:var(--mono); font-size:20px; font-weight:700; display:block; margin-bottom:3px; }
+    .rev-card .l { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
+
     /* ── HEADER ── */
     header {
       display: flex; align-items: center; gap: 12px;
@@ -327,6 +350,8 @@
   </button>
 
   <button class="btn" onclick="window.open('/outreachbot/api/export')">📥 Export</button>
+  <a href="/outreachbot/crm" class="btn" title="CRM" style="padding:6px 11px;font-size:13px">📋 CRM</a>
+  <a href="/outreachbot/services" class="btn" title="Services Page" style="padding:6px 11px;font-size:13px" target="_blank">🌐</a>
   <a href="/outreachbot/settings" class="btn" title="Admin Settings" style="padding:6px 11px;font-size:15px">⚙</a>
 </header>
 
@@ -464,6 +489,98 @@
         <thead><tr><th>Date</th><th>Found</th><th>Audited</th><th>Queued</th><th>Sent</th><th>Status</th></tr></thead>
         <tbody id="campsBody"><tr><td colspan="6" class="empty-state">No campaigns yet.</td></tr></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- PIPELINE & SEQUENCES -->
+  <div style="margin-bottom:20px">
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Pipeline & Sequences</span>
+      <a href="/outreachbot/crm" class="btn" style="font-size:10px;padding:3px 10px">Open CRM →</a>
+    </div>
+    <div class="panel" style="padding:18px">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:10px">PIPELINE</div>
+      <div class="pipe-row">
+        <div class="pipe-stage" style="background:rgba(79,125,243,.1);border:1px solid rgba(79,125,243,.2)">
+          <div class="pipe-n" id="pp-contacted" style="color:var(--blue)">0</div>
+          <div class="pipe-l">Contacted</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-stage" style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2)">
+          <div class="pipe-n" id="pp-opened" style="color:var(--orange)">0</div>
+          <div class="pipe-l">Opened</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-stage" style="background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2)">
+          <div class="pipe-n" id="pp-replied" style="color:var(--purple)">0</div>
+          <div class="pipe-l">Replied</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-stage" style="background:rgba(29,185,84,.08);border:1px solid rgba(29,185,84,.2)">
+          <div class="pipe-n" id="pp-interested" style="color:var(--green)">0</div>
+          <div class="pipe-l">Interested</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-stage" style="background:rgba(29,185,84,.15);border:1px solid rgba(29,185,84,.35)">
+          <div class="pipe-n" id="pp-closed" style="color:var(--green)">0</div>
+          <div class="pipe-l">Closed 💰</div>
+        </div>
+      </div>
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-top:18px;margin-bottom:10px">SEQUENCE STAGES</div>
+      <div class="seq-grid">
+        <div class="seq-card"><span class="n" id="seq-s1" style="color:var(--blue)">0</span><span class="l">Stage 1</span></div>
+        <div class="seq-card"><span class="n" id="seq-s2" style="color:var(--orange)">0</span><span class="l">Stage 2</span></div>
+        <div class="seq-card"><span class="n" id="seq-s3" style="color:var(--purple)">0</span><span class="l">Stage 3</span></div>
+        <div class="seq-card"><span class="n" id="seq-replied" style="color:var(--green)">0</span><span class="l">Replied ✓</span></div>
+        <div class="seq-card"><span class="n" id="seq-total" style="color:var(--text)">0</span><span class="l">Total</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- A/B TEST RESULTS -->
+  <div style="margin-bottom:20px">
+    <div class="section-title">A/B Test Results</div>
+    <div class="panel" style="padding:0;overflow:hidden">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:60px">Variant</th>
+            <th>Subject Line</th>
+            <th style="width:70px;text-align:center">Sent</th>
+            <th style="width:80px;text-align:center">Opened</th>
+            <th style="width:90px;text-align:center">Open Rate</th>
+            <th style="width:80px;text-align:center">Replied</th>
+            <th style="width:95px;text-align:center">Reply Rate</th>
+            <th style="width:80px;text-align:center">Status</th>
+          </tr>
+        </thead>
+        <tbody id="abTableBody">
+          <tr><td colspan="8" class="empty-state" style="padding:24px">No A/B data yet — start sending to see results.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- REVENUE DASHBOARD -->
+  <div style="margin-bottom:20px">
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Revenue Dashboard</span>
+      <button class="btn" style="font-size:10px;padding:3px 10px" onclick="refreshDashboard()">↻ Refresh</button>
+    </div>
+    <div class="panel" style="padding:18px">
+      <div class="rev-grid">
+        <div class="rev-card"><span class="n" id="rev-onetime" style="color:var(--green)">$0</span><span class="l">One-Time Revenue</span></div>
+        <div class="rev-card"><span class="n" id="rev-recurring" style="color:var(--blue)">$0</span><span class="l">Monthly Recurring</span></div>
+        <div class="rev-card"><span class="n" id="rev-annual" style="color:var(--purple)">$0</span><span class="l">Projected Annual</span></div>
+        <div class="rev-card"><span class="n" id="rev-clients" style="color:var(--orange)">0</span><span class="l">Clients</span></div>
+      </div>
+      <div id="revMonthWrap" style="display:none">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Monthly Breakdown</div>
+        <table>
+          <thead><tr><th>Month</th><th style="text-align:right">One-Time</th><th style="text-align:right">Recurring</th><th style="text-align:right">Total</th></tr></thead>
+          <tbody id="revMonthBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -1167,7 +1284,94 @@ document.addEventListener('DOMContentLoaded', async function() {
     var ai = await fetch(BASE+'/api/ai/status').then(function(r){return r.json();});
     showAIBadge(ai.aiActive, ai.aiGeneratedCount || 0);
   } catch(e){}
+  // Load new dashboard panels
+  loadDashboard();
+  loadAbResults();
 });
+
+// ── DASHBOARD PANELS ─────────────────────────────────────────
+var _dashToken = sessionStorage.getItem('ob_admin') || '';
+
+async function loadDashboard() {
+  try {
+    var r = await fetch(BASE+'/api/pipeline');
+    if (!r.ok) return;
+    var p = await r.json();
+    // Pipeline
+    document.getElementById('pp-contacted').textContent  = p.contacted  || 0;
+    document.getElementById('pp-opened').textContent     = p.opened     || 0;
+    document.getElementById('pp-replied').textContent    = p.replied    || 0;
+    document.getElementById('pp-interested').textContent = p.interested || 0;
+    document.getElementById('pp-closed').textContent     = p.closed     || 0;
+    // Sequence stages
+    document.getElementById('seq-s1').textContent      = p.stage1   || 0;
+    document.getElementById('seq-s2').textContent      = p.stage2   || 0;
+    document.getElementById('seq-s3').textContent      = p.stage3   || 0;
+    document.getElementById('seq-replied').textContent = p.stopped_replied || 0;
+    document.getElementById('seq-total').textContent   = p.total    || 0;
+  } catch(e) {}
+  // Revenue (requires auth)
+  try {
+    var r2 = await fetch(BASE+'/api/revenue', { headers: {'x-admin-token': _dashToken} });
+    if (!r2.ok) return;
+    var d = await r2.json();
+    var s = d.summary || {};
+    var ot  = parseFloat(s.total_onetime  || 0);
+    var rec = parseFloat(s.total_recurring || 0);
+    document.getElementById('rev-onetime').textContent   = '$' + ot.toLocaleString();
+    document.getElementById('rev-recurring').textContent = '$' + rec.toLocaleString();
+    document.getElementById('rev-annual').textContent    = '$' + ((ot + rec * 12) | 0).toLocaleString();
+    document.getElementById('rev-clients').textContent   = s.clients || 0;
+    var byMonth = d.byMonth || [];
+    if (byMonth.length) {
+      document.getElementById('revMonthWrap').style.display = 'block';
+      document.getElementById('revMonthBody').innerHTML = byMonth.map(function(m) {
+        var total = (parseFloat(m.onetime)||0)+(parseFloat(m.recurring)||0);
+        return '<tr>'
+          +'<td>'+m.month+'</td>'
+          +'<td style="text-align:right;font-family:var(--mono)">$'+(parseFloat(m.onetime)||0).toLocaleString()+'</td>'
+          +'<td style="text-align:right;font-family:var(--mono)">$'+(parseFloat(m.recurring)||0).toLocaleString()+'</td>'
+          +'<td style="text-align:right;font-family:var(--mono);color:var(--green)">$'+total.toLocaleString()+'</td>'
+          +'</tr>';
+      }).join('');
+    }
+  } catch(e) {}
+}
+
+async function loadAbResults() {
+  try {
+    var r = await fetch(BASE+'/api/ab-results');
+    if (!r.ok) return;
+    var d = await r.json();
+    var subjects = {
+      A: '[Company] — found 3 issues costing you clients',
+      B: "Quick question about [Company]'s website",
+      C: 'I built something for [Company] — free to look'
+    };
+    var winner = d.winner;
+    document.getElementById('abTableBody').innerHTML = (d.results||[]).map(function(r) {
+      var isWinner = winner && r.variant === winner;
+      return '<tr>'
+        +'<td><span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;font-size:11px;font-weight:700;background:'+(r.variant==='A'?'rgba(79,125,243,.15)':r.variant==='B'?'rgba(245,166,35,.15)':'rgba(167,139,250,.15)')+';color:'+(r.variant==='A'?'var(--blue)':r.variant==='B'?'var(--orange)':'var(--purple)')+'">'+r.variant+'</span></td>'
+        +'<td style="font-size:12px;color:var(--muted)">'+subjects[r.variant]+'</td>'
+        +'<td style="text-align:center;font-family:var(--mono)">'+r.sent+'</td>'
+        +'<td style="text-align:center;font-family:var(--mono)">'+r.opened+'</td>'
+        +'<td style="text-align:center;font-family:var(--mono);color:var(--orange)">'+r.openRate+'%</td>'
+        +'<td style="text-align:center;font-family:var(--mono)">'+r.replied+'</td>'
+        +'<td style="text-align:center;font-family:var(--mono);color:var(--green)">'+r.replyRate+'%</td>'
+        +'<td style="text-align:center">'+(isWinner?'<span class="winner-badge">🏆 Winner</span>':r.sent<100?'<span style="font-size:10px;color:var(--muted)">'+r.sent+'/100</span>':'<span style="font-size:10px;color:var(--muted)">—</span>')+'</td>'
+        +'</tr>';
+    }).join('') || '<tr><td colspan="8" class="empty-state" style="padding:24px">No data yet.</td></tr>';
+  } catch(e) {}
+}
+
+function refreshDashboard() { loadDashboard(); loadAbResults(); }
+
+// Refresh panels every 2 minutes
+setInterval(function() { loadDashboard(); loadAbResults(); }, 120000);
+
+// Also update token when set in settings
+function updateDashToken(t) { _dashToken = t; }
 </script>
 </body>
 </html>

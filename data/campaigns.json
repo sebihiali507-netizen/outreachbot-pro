@@ -1,5 +1,21 @@
 [
   {
+    "id": "ea47d7c3-789f-4a5f-baa1-ab15506f40a3",
+    "startedAt": "2026-05-04T04:44:23.937Z",
+    "completedAt": "2026-05-04T04:45:25.657Z",
+    "status": "aborted",
+    "stats": {
+      "found": 0,
+      "withSite": 0,
+      "noSite": 0,
+      "sent": 0,
+      "skipped": 0,
+      "audited": 0,
+      "queued": 0,
+      "phase": "queued"
+    }
+  },
+  {
     "id": "f45a6bbf-eeaf-4232-a1e1-3065b77a9b87",
     "startedAt": "2026-05-04T04:18:38.715Z",
     "completedAt": "2026-05-04T04:20:27.011Z",
