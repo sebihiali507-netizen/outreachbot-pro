@@ -305,6 +305,60 @@
     .btn-ai:hover { background:rgba(167,139,250,.2); }
     .btn-ai:disabled { opacity:.4; cursor:default; }
     .feed-ai .feed-msg { color: var(--purple); font-style: italic; }
+
+    /* ── SEARCH MODE TOGGLE ── */
+    .mode-btn {
+      padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      border: 1px solid var(--border); background: var(--s2); color: var(--muted);
+      cursor: pointer; transition: all .15s;
+    }
+    .mode-btn:hover { background: #1e2333; color: var(--text); }
+    .mode-btn.mode-active { background: rgba(79,125,243,.15); border-color: rgba(79,125,243,.4); color: var(--blue); }
+
+    /* ── TARGETED CFG PANEL ── */
+    .targeted-cfg {
+      width: 100%; max-width: 600px; background: var(--s2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; text-align: left;
+    }
+    .tcfg-row { display: flex; gap: 12px; }
+    .tcfg-group { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .tcfg-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+    .tcfg-select, .tcfg-input {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text);
+      border-radius: 7px; padding: 8px 10px; font-size: 13px; font-family: inherit;
+      width: 100%; outline: none; transition: border-color .15s;
+    }
+    .tcfg-select:focus, .tcfg-input:focus { border-color: var(--blue); }
+
+    /* Sector chips */
+    .sector-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 6px; }
+    .sector-chip {
+      display: flex; align-items: center; gap: 5px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+      padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer;
+      transition: all .15s; user-select: none;
+    }
+    .sector-chip:has(input:checked) { background: rgba(79,125,243,.15); border-color: rgba(79,125,243,.4); color: var(--blue); }
+    .sector-chip input { display: none; }
+
+    /* Toggle filters */
+    .tcfg-filters { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .tcfg-toggle { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+    .tcfg-toggle input { display: none; }
+    .toggle-track {
+      flex-shrink: 0; width: 36px; height: 20px; border-radius: 10px; background: var(--border);
+      position: relative; transition: background .2s; margin-top: 2px;
+    }
+    .toggle-track::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px; border-radius: 50%; background: #fff;
+      transition: transform .2s;
+    }
+    .tcfg-toggle input:checked ~ .toggle-track { background: var(--blue); }
+    .tcfg-toggle input:checked ~ .toggle-track::after { transform: translateX(16px); }
+    .toggle-text { display: flex; flex-direction: column; gap: 2px; }
+    .toggle-text strong { font-size: 13px; font-weight: 600; }
+    .toggle-text small { font-size: 11px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -374,10 +428,85 @@
         <span class="chip" id="aiChip" style="background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.3);color:var(--purple)">🤖 AI Mode</span>
       </div>
 
-      <div class="city-list">
-        🇺🇸 New York · Los Angeles &nbsp;·&nbsp; 🇬🇧 London &nbsp;·&nbsp; 🇫🇷 Paris<br>
-        🇦🇪 Dubai · Abu Dhabi &nbsp;·&nbsp; 🇸🇬 Singapore &nbsp;·&nbsp; 🇭🇰 Hong Kong<br>
-        🇧🇷 São Paulo &nbsp;·&nbsp; 🇦🇺 Sydney · Melbourne
+      <!-- SEARCH MODE TOGGLE -->
+      <div style="display:flex;gap:8px;justify-content:center;margin:16px 0 10px">
+        <button id="modeGlobal" class="mode-btn mode-active" onclick="setSearchMode('global')">🌐 All 11 Cities</button>
+        <button id="modeTargeted" class="mode-btn" onclick="setSearchMode('targeted')">🎯 Targeted Search</button>
+      </div>
+
+      <!-- GLOBAL mode: city list -->
+      <div id="globalPanel">
+        <div class="city-list">
+          🇺🇸 New York · Los Angeles &nbsp;·&nbsp; 🇬🇧 London &nbsp;·&nbsp; 🇫🇷 Paris<br>
+          🇦🇪 Dubai · Abu Dhabi &nbsp;·&nbsp; 🇸🇬 Singapore &nbsp;·&nbsp; 🇭🇰 Hong Kong<br>
+          🇧🇷 São Paulo &nbsp;·&nbsp; 🇦🇺 Sydney · Melbourne
+        </div>
+      </div>
+
+      <!-- TARGETED mode: config panel -->
+      <div id="targetedPanel" style="display:none">
+        <div class="targeted-cfg">
+          <!-- Row 1: City + Target Count -->
+          <div class="tcfg-row">
+            <div class="tcfg-group">
+              <label class="tcfg-label">Target City</label>
+              <select id="tCity" class="tcfg-select">
+                <option value="London">🇬🇧 London</option>
+                <option value="Dubai">🇦🇪 Dubai</option>
+                <option value="New York">🇺🇸 New York</option>
+                <option value="Los Angeles">🇺🇸 Los Angeles</option>
+                <option value="Paris">🇫🇷 Paris</option>
+                <option value="Abu Dhabi">🇦🇪 Abu Dhabi</option>
+                <option value="Singapore">🇸🇬 Singapore</option>
+                <option value="Hong Kong">🇭🇰 Hong Kong</option>
+                <option value="São Paulo">🇧🇷 São Paulo</option>
+                <option value="Sydney">🇦🇺 Sydney</option>
+                <option value="Melbourne">🇦🇺 Melbourne</option>
+              </select>
+            </div>
+            <div class="tcfg-group">
+              <label class="tcfg-label">Target Count</label>
+              <input id="tCount" type="number" class="tcfg-input" value="1000" min="50" max="1000" step="50">
+            </div>
+          </div>
+
+          <!-- Row 2: Business Types -->
+          <div class="tcfg-group" style="margin-top:12px">
+            <label class="tcfg-label">Business Types <span style="color:var(--muted);font-weight:400">(select one or more)</span></label>
+            <div class="sector-chips" id="sectorChips">
+              <label class="sector-chip"><input type="checkbox" value="law_firm" checked> ⚖️ Law Firms</label>
+              <label class="sector-chip"><input type="checkbox" value="dental"> 🦷 Dental</label>
+              <label class="sector-chip"><input type="checkbox" value="aesthetic"> 💆 Aesthetic</label>
+              <label class="sector-chip"><input type="checkbox" value="medical"> 🏥 Medical</label>
+              <label class="sector-chip"><input type="checkbox" value="real_estate"> 🏠 Real Estate</label>
+              <label class="sector-chip"><input type="checkbox" value="accounting"> 📊 Accounting</label>
+              <label class="sector-chip"><input type="checkbox" value="plumbing"> 🔧 Plumbing</label>
+              <label class="sector-chip"><input type="checkbox" value="hvac"> ❄️ HVAC</label>
+              <label class="sector-chip"><input type="checkbox" value="restaurant"> 🍽️ Restaurant</label>
+              <label class="sector-chip"><input type="checkbox" value="local_services"> 🏪 Local Services</label>
+            </div>
+          </div>
+
+          <!-- Row 3: Filters -->
+          <div class="tcfg-filters">
+            <label class="tcfg-toggle">
+              <input type="checkbox" id="tNoWebsite" checked>
+              <span class="toggle-track"></span>
+              <span class="toggle-text">
+                <strong>No Website / Dead URL only</strong>
+                <small>Only include businesses with no website or a broken/unreachable URL</small>
+              </span>
+            </label>
+            <label class="tcfg-toggle">
+              <input type="checkbox" id="tValidateEmail" checked>
+              <span class="toggle-track"></span>
+              <span class="toggle-text">
+                <strong>Validate Emails (MX Check)</strong>
+                <small>Cross-reference found emails against DNS MX records for deliverability</small>
+              </span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <div class="config-strip" id="configStrip">
@@ -388,7 +517,7 @@
       </div>
 
       <button id="startBtn" onclick="startBot()">🔍 SEARCH &amp; AUDIT LEADS</button>
-      <p class="hint">Searches 11 cities → audits each site (SSL, speed, mobile) → fills your send queue</p>
+      <p class="hint" id="searchHint">Searches 11 cities → audits each site (SSL, speed, mobile) → fills your send queue</p>
     </div>
 
     <!-- RUNNING -->
@@ -922,8 +1051,31 @@ function showComplete(s) {
   updateCronUI();
 }
 
+// ── SEARCH MODE ────────────────────────────────────────────
+var searchMode = 'global';
+function setSearchMode(mode) {
+  searchMode = mode;
+  document.getElementById('modeGlobal').classList.toggle('mode-active', mode === 'global');
+  document.getElementById('modeTargeted').classList.toggle('mode-active', mode === 'targeted');
+  document.getElementById('globalPanel').style.display   = mode === 'global'   ? '' : 'none';
+  document.getElementById('targetedPanel').style.display = mode === 'targeted' ? '' : 'none';
+  var btn  = document.getElementById('startBtn');
+  var hint = document.getElementById('searchHint');
+  if (mode === 'targeted') {
+    btn.textContent = '🎯 START TARGETED SEARCH';
+    hint.textContent = 'Searches one city → filters no-website/dead URLs → validates emails → fills CRM + queue';
+  } else {
+    btn.textContent = '🔍 SEARCH & AUDIT LEADS';
+    hint.textContent = 'Searches 11 cities → audits each site (SSL, speed, mobile) → fills your send queue';
+  }
+}
+
 // ── BOT ACTIONS ───────────────────────────────────────────
 async function startBot() {
+  if (searchMode === 'targeted') {
+    await startTargetedBot();
+    return;
+  }
   var r = await fetch(BASE+'/api/bot/start', { method:'POST' });
   var d = await r.json();
   if (d.error) { alert(d.error); return; }
@@ -932,6 +1084,24 @@ async function startBot() {
   setBar(0); setLabel('Starting...');
   setPhaseBadge('search');
 }
+
+async function startTargetedBot() {
+  var city   = document.getElementById('tCity').value;
+  var count  = parseInt(document.getElementById('tCount').value) || 1000;
+  var noWeb  = document.getElementById('tNoWebsite').checked;
+  var mxVal  = document.getElementById('tValidateEmail').checked;
+  var keys   = Array.from(document.querySelectorAll('#sectorChips input:checked')).map(function(i){ return i.value; });
+  if (!keys.length) { alert('Please select at least one business type.'); return; }
+  var body = { city:city, sectorKeys:keys, noWebsiteOnly:noWeb, validateEmails:mxVal, targetCount:count };
+  var r = await fetch(BASE+'/api/bot/targeted', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  var d = await r.json();
+  if (d.error) { alert(d.error); return; }
+  showRunning(); startTimer();
+  document.getElementById('liveFeed').innerHTML = '';
+  setBar(0); setLabel('Launching targeted search for ' + city + '...');
+  setPhaseBadge('search');
+}
+
 function stopBot() { fetch(BASE+'/api/bot/stop', { method:'POST' }); }
 async function clearAll() {
   if (!confirm('Clear all leads and queue? Cannot be undone.')) return;

@@ -8,6 +8,7 @@ const fs   = require('fs');
 const path = require('path');
 const cors = require('cors');
 const cron = require('node-cron');
+const dns  = require('dns');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ── NEW MODULES ───────────────────────────────────────────────
@@ -500,6 +501,35 @@ const SEARCH_MATRIX = [
   { city:'Melbourne',   gl:'au', hl:'en', lang:'en', ll:'-37.8136,144.9631',  sectors:['dental clinic','aesthetic clinic','medical clinic','real estate agency','plumbing service','hvac contractor'] },
 ];
 
+// ── CITY MAP (for targeted search) ───────────────────────────
+const CITY_MAP = {
+  'New York':    { gl:'us', hl:'en', lang:'en', ll:'40.7128,-74.0060' },
+  'Los Angeles': { gl:'us', hl:'en', lang:'en', ll:'34.0522,-118.2437' },
+  'London':      { gl:'gb', hl:'en', lang:'en', ll:'51.5074,-0.1278' },
+  'Paris':       { gl:'fr', hl:'fr', lang:'fr', ll:'48.8566,2.3522' },
+  'Dubai':       { gl:'ae', hl:'en', lang:'en', ll:'25.2048,55.2708' },
+  'Abu Dhabi':   { gl:'ae', hl:'en', lang:'en', ll:'24.4539,54.3773' },
+  'Singapore':   { gl:'sg', hl:'en', lang:'en', ll:'1.3521,103.8198' },
+  'Hong Kong':   { gl:'hk', hl:'en', lang:'en', ll:'22.3193,114.1694' },
+  'São Paulo':   { gl:'br', hl:'pt', lang:'pt', ll:'-23.5505,-46.6333' },
+  'Sydney':      { gl:'au', hl:'en', lang:'en', ll:'-33.8688,151.2093' },
+  'Melbourne':   { gl:'au', hl:'en', lang:'en', ll:'-37.8136,144.9631' },
+};
+
+// ── TARGETED SECTOR PRESETS ───────────────────────────────────
+const SECTOR_PRESETS = {
+  'law_firm':        ['law firm', 'solicitor', 'attorney', 'legal services', 'immigration lawyer', 'criminal lawyer', 'divorce lawyer'],
+  'dental':          ['dental clinic', 'dentist', 'orthodontist', 'cosmetic dentist'],
+  'aesthetic':       ['aesthetic clinic', 'beauty clinic', 'medspa', 'cosmetic clinic'],
+  'medical':         ['medical clinic', 'doctor', 'physician', 'health clinic'],
+  'real_estate':     ['real estate agency', 'property agent', 'realtor'],
+  'plumbing':        ['plumbing service', 'plumber', 'pipe repair'],
+  'hvac':            ['hvac contractor', 'air conditioning', 'heating contractor'],
+  'restaurant':      ['restaurant', 'cafe', 'bistro', 'diner'],
+  'accounting':      ['accountant', 'accounting firm', 'bookkeeper', 'tax advisor'],
+  'local_services':  ['cleaning service', 'landscaping', 'electrician', 'locksmith', 'pest control'],
+};
+
 // ── AUDIT ENGINE ─────────────────────────────────────────────
 const UC_PHRASES = ['under construction','coming soon','maintenance mode','be back soon','launching soon','pardon our dust','site en construction','قيد الإنشاء','em construção'];
 
@@ -583,6 +613,39 @@ async function analyzeWebsite(website) {
   result.estimatedLoss = loss;
 
   return result;
+}
+
+// ── DEAD URL DETECTION ────────────────────────────────────────
+async function isDeadUrl(url) {
+  if (!url) return false;
+  const normalized = url.startsWith('http') ? url : 'https://' + url;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(normalized, {
+      signal: ctrl.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      redirect: 'follow'
+    });
+    clearTimeout(t);
+    return res.status >= 400;
+  } catch {
+    clearTimeout(t);
+    return true;
+  }
+}
+
+// ── EMAIL MX VALIDATION ───────────────────────────────────────
+async function validateEmailMX(email) {
+  if (!email || !email.includes('@')) return false;
+  const domain = email.split('@')[1];
+  if (!domain) return false;
+  try {
+    const records = await dns.promises.resolveMx(domain);
+    return Array.isArray(records) && records.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 // ── SECTOR BASELINE LOSS (when technical audit finds no issues) ──
@@ -1168,6 +1231,237 @@ async function runBot() {
 
   broadcast({ type:'bot_complete', message:`Done! ${currentStats.queued} leads queued. ${cronRunning ? 'Auto-send is active.' : 'Press "Start Auto-Send" to begin sending.'}`, stats:currentStats, campaign, queueLeft:queueLength() });
 }
+
+// ── TARGETED BOT (single city + sectors + filters) ────────────
+async function runTargetedBot(options = {}) {
+  const {
+    city,
+    sectorKeys    = [],
+    noWebsiteOnly = false,
+    validateEmails = false,
+    targetCount   = 1000,
+  } = options;
+
+  botRunning = true;
+  botAborted = false;
+  const campaignId  = uuid();
+  const startedAt   = new Date().toISOString();
+
+  const cityParams = CITY_MAP[city];
+  if (!cityParams) {
+    broadcast({ type:'bot_error', message:`Unknown city: ${city}` });
+    botRunning = false;
+    return;
+  }
+
+  // Build sector list from selected preset keys
+  let sectors = [];
+  for (const key of sectorKeys) {
+    const list = SECTOR_PRESETS[key] || [];
+    sectors = sectors.concat(list);
+  }
+  if (!sectors.length) sectors = ['local business', 'service business'];
+
+  const { gl, hl, lang, ll } = cityParams;
+
+  currentStats = { found:0, withSite:0, noSite:0, sent:currentStats.sent, skipped:currentStats.skipped, audited:0, queued:0, emailsVerified:0, deadUrls:0, phase:'searching' };
+
+  const filterLabel = [
+    noWebsiteOnly  ? 'No Website/Dead URL only' : 'All',
+    validateEmails ? '+ MX validation' : '',
+  ].filter(Boolean).join(' ');
+
+  broadcast({ type:'bot_start', message:`Targeted search: ${city} — ${sectorKeys.join(', ')} · ${filterLabel}`, stats:currentStats });
+
+  const existingLeads    = readJ(LEADS_FILE);
+  const contactedDomains = new Set(readJ(DOMAINS_FILE));
+  const seenKeys         = new Set(existingLeads.map(l => `${(l.company||'').toLowerCase()}__${(l.city||'').toLowerCase()}`));
+  const newLeads         = [];
+
+  // ── PHASE 1: SEARCH ──────────────────────────────────────
+  broadcast({ type:'search_start', message:`Searching ${city} for: ${sectorKeys.join(', ')}...`, pipeline:city, step:1, total:1, stats:currentStats });
+  try {
+    const places = await searchSerperMulti(city, gl, hl, lang, ll, sectors);
+    for (const place of places) {
+      if (botAborted || newLeads.length >= targetCount) break;
+      const company = (place.title || '').trim();
+      if (!company) continue;
+      const key = `${company.toLowerCase()}__${city.toLowerCase()}`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      const website = place.website || '';
+      const domain  = getDomain(website);
+      if (domain && contactedDomains.has(domain)) continue;
+      const lead = {
+        id: uuid(), company, name:company,
+        city, sector:place.sector || sectors[0], lang,
+        phone:place.phoneNumber || place.phone || '',
+        address:place.address || '',
+        website, rating:parseFloat(place.rating)||0, reviewsCount:parseInt(place.reviewsCount)||0,
+        hasWebsite:!!website, email:'', emailSent:false, sentAt:null,
+        audit:null, score:null, accountUsed:'', createdAt:new Date().toISOString()
+      };
+      newLeads.push(lead);
+      currentStats.found++;
+      if (lead.hasWebsite) currentStats.withSite++; else currentStats.noSite++;
+    }
+  } catch (err) {
+    broadcast({ type:'search_error', message:`${city}: ${err.message}`, pipeline:city });
+  }
+  broadcast({ type:'search_done', message:`${city}: ${newLeads.length} leads found`, pipeline:city, count:newLeads.length, stats:currentStats });
+
+  // ── PHASE 1.5: DEAD URL FILTER ────────────────────────────
+  let filteredLeads = newLeads;
+  if (noWebsiteOnly && !botAborted) {
+    broadcast({ type:'audit_phase_start', message:'Filtering: checking for no-website / dead URLs...', stats:currentStats });
+    const filtered = [];
+    for (const lead of newLeads) {
+      if (botAborted) break;
+      if (!lead.hasWebsite) {
+        filtered.push(lead);
+        currentStats.deadUrls++;
+      } else {
+        const dead = await isDeadUrl(lead.website);
+        if (dead) {
+          lead.deadUrl = true;
+          filtered.push(lead);
+          currentStats.deadUrls++;
+          broadcast({ type:'auditing', message:`Dead URL confirmed: ${lead.company} (${lead.website})`, lead:lead.company });
+        }
+      }
+    }
+    filteredLeads = filtered;
+    currentStats.found = filteredLeads.length;
+    broadcast({ type:'search_done', message:`Filter done — ${filteredLeads.length} no-website/dead URL leads`, stats:currentStats });
+  }
+
+  writeJ(LEADS_FILE, [...existingLeads, ...filteredLeads]);
+
+  // ── PHASE 2: AUDIT + EMAIL DISCOVERY ─────────────────────
+  currentStats.phase = 'auditing';
+  broadcast({ type:'audit_phase_start', message:'Phase 2: Auditing sites and finding emails...', stats:currentStats });
+
+  const queueItems = [];
+
+  for (let i = 0; i < filteredLeads.length; i++) {
+    if (botAborted) break;
+    const lead   = filteredLeads[i];
+    const pct    = Math.round(50 + (i / Math.max(filteredLeads.length, 1)) * 50);
+    broadcast({ type:'progress', progress:pct, processed:i+1, total:filteredLeads.length, stats:currentStats });
+
+    if (lead.hasWebsite && !lead.deadUrl) {
+      broadcast({ type:'auditing', message:`Auditing ${lead.company}...`, lead:lead.company });
+      try {
+        const audit = await analyzeWebsite(lead.website);
+        lead.audit = { score:audit.score, ssl:audit.ssl, speedMs:audit.speedMs, underConstruction:audit.underConstruction, noMobile:audit.noMobile, issues:audit.issues, estimatedLoss:audit.estimatedLoss||0 };
+        lead.score = audit.score;
+        lead.estimatedLoss = audit.estimatedLoss || 0;
+        lead.auditFinished = true;
+        lead.email = audit.email || '';
+        currentStats.audited++;
+        broadcast({ type:'audit_done', message:`${lead.company}: ${audit.score}/100${audit.issues.length ? ' — ' + audit.issues.join(', ') : ' ✓'}`, lead:lead.company, score:audit.score, issues:audit.issues, estimatedLoss:audit.estimatedLoss||0, stats:currentStats });
+      } catch { lead.score = 100; }
+    } else if (lead.deadUrl && lead.website) {
+      broadcast({ type:'auditing', message:`Auditing dead site: ${lead.company}...`, lead:lead.company });
+      try {
+        const audit = await analyzeWebsite(lead.website);
+        lead.audit = { score:audit.score, ssl:audit.ssl, speedMs:audit.speedMs, underConstruction:audit.underConstruction, noMobile:audit.noMobile, issues:audit.issues, estimatedLoss:audit.estimatedLoss||0 };
+        lead.score = audit.score;
+        lead.estimatedLoss = audit.estimatedLoss || 0;
+        lead.auditFinished = true;
+        lead.email = audit.email || '';
+        currentStats.audited++;
+        broadcast({ type:'audit_done', message:`Dead URL audit: ${lead.company} — SSL: ${audit.ssl ? 'OK' : 'FAIL'}, Speed: ${audit.speedMs ? (audit.speedMs/1000).toFixed(1)+'s' : 'N/A'}`, lead:lead.company, score:audit.score, issues:audit.issues, estimatedLoss:audit.estimatedLoss||0, stats:currentStats });
+      } catch { lead.score = 0; }
+    }
+
+    // ── EMAIL MX VALIDATION ──────────────────────────────
+    if (validateEmails && lead.email) {
+      const valid = await validateEmailMX(lead.email);
+      if (!valid) {
+        lead.emailMxFailed = true;
+        broadcast({ type:'email_skip', message:`MX invalid: ${lead.email} — skipped`, lead:lead.company, queueLeft:queueLength() });
+        currentStats.skipped++;
+        const all = readJ(LEADS_FILE);
+        const idx2 = all.findIndex(l => l.id === lead.id);
+        if (idx2 !== -1) { all[idx2] = lead; writeJ(LEADS_FILE, all); }
+        continue;
+      }
+      lead.emailMxVerified = true;
+      currentStats.emailsVerified = (currentStats.emailsVerified || 0) + 1;
+      broadcast({ type:'audit_done', message:`✓ MX verified: ${lead.email}`, lead:lead.company, stats:currentStats });
+    }
+
+    // ── QUEUE DECISION ───────────────────────────────────
+    if (lead.email || (lead.hasWebsite && lead.website && !lead.deadUrl)) {
+      queueItems.push({ ...lead });
+      currentStats.queued++;
+    } else if (!lead.hasWebsite || lead.deadUrl) {
+      queueItems.push({ ...lead });
+      currentStats.queued++;
+    } else {
+      currentStats.skipped++;
+    }
+
+    const all = readJ(LEADS_FILE);
+    const idx = all.findIndex(l => l.id === lead.id);
+    if (idx !== -1) { all[idx] = lead; writeJ(LEADS_FILE, all); }
+  }
+
+  addToQueue(queueItems);
+
+  // ── CRM SYNC ────────────────────────────────────────────
+  try {
+    for (const lead of queueItems) {
+      const notesParts = [];
+      if (lead.deadUrl)          notesParts.push('Dead URL detected');
+      if (lead.emailMxVerified)  notesParts.push('Email MX verified');
+      if (!lead.hasWebsite)      notesParts.push('No website');
+      crmDb.upsertContact({
+        id: lead.id, company: lead.company, contact_name: '',
+        email: lead.email || '', business_type: lead.sector || '',
+        city: lead.city || '', website: lead.website || '',
+        sequence_stage: 0, sequence_stopped: 0, last_email_sent: null,
+        status: 'New', revenue_onetime: 0, revenue_recurring: 0,
+        notes: notesParts.join(' · '),
+        ab_variant: '', opened: 0, replied: 0,
+        reply_sentiment: '', lead_id: lead.id,
+        created_at: new Date().toISOString()
+      });
+    }
+  } catch (crmErr) { console.error('[CRM] Targeted sync error:', crmErr.message); }
+
+  currentStats.phase = 'queued';
+
+  const campaign = { id:campaignId, startedAt, completedAt:new Date().toISOString(), status:botAborted?'aborted':'queued', stats:{...currentStats} };
+  const camps = readJ(CAMPS_FILE);
+  camps.unshift(campaign);
+  writeJ(CAMPS_FILE, camps);
+  botRunning = false;
+
+  broadcast({ type:'bot_complete', message:`Done! ${currentStats.queued} leads queued from ${city}. ${cronRunning ? 'Auto-send is active.' : 'Press "Start Auto-Send" to begin sending.'}`, stats:currentStats, campaign, queueLeft:queueLength() });
+}
+
+// ── SECTOR PRESETS API ─────────────────────────────────────────
+app.get('/outreachbot/api/sector-presets', (req, res) => {
+  res.json(Object.entries(SECTOR_PRESETS).map(([key, sectors]) => ({ key, label: key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()), sectors })));
+});
+
+// ── TARGETED BOT START API ────────────────────────────────────
+app.post('/outreachbot/api/bot/targeted', (req, res) => {
+  if (botRunning) return res.status(409).json({ error:'already running' });
+  const { city, sectorKeys, noWebsiteOnly, validateEmails, targetCount } = req.body || {};
+  if (!city) return res.status(400).json({ error:'city is required' });
+  if (!CITY_MAP[city]) return res.status(400).json({ error:`Unknown city: ${city}` });
+  res.json({ started:true, city, sectorKeys, noWebsiteOnly, validateEmails, targetCount });
+  runTargetedBot({
+    city,
+    sectorKeys:    Array.isArray(sectorKeys) ? sectorKeys : [],
+    noWebsiteOnly: !!noWebsiteOnly,
+    validateEmails: !!validateEmails,
+    targetCount:   Math.min(parseInt(targetCount || 1000), 1000),
+  }).catch(err => { botRunning = false; broadcast({ type:'bot_error', message:err.message }); });
+});
 
 // ── ACCOUNTS API ──────────────────────────────────────────────
 app.get('/outreachbot/api/accounts', (req, res) => {
