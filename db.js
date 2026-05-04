@@ -3,12 +3,17 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new Database(path.join(DATA_DIR, 'outreachbot.db'));
+const DB_FILE = path.join(DATA_DIR, 'outreachbot.db');
+const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+
+if (process.env.NODE_ENV === 'production') {
+  console.log(`[DB] Production mode — database: ${DB_FILE}, data dir: ${DATA_DIR}`);
+}
 
 // ── SCHEMA ────────────────────────────────────────────────────
 db.exec(`
@@ -33,6 +38,21 @@ CREATE TABLE IF NOT EXISTS contacts (
   reply_sentiment TEXT DEFAULT '',
   lead_id TEXT DEFAULT '',
   created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS contact_memory (
+  phone TEXT PRIMARY KEY,
+  lead_id TEXT,
+  company TEXT,
+  city TEXT,
+  sector TEXT,
+  lang TEXT DEFAULT 'en',
+  has_website INTEGER DEFAULT 0,
+  first_seen TEXT DEFAULT (datetime('now')),
+  last_contacted TEXT,
+  contact_count INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'new',
+  notes TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS sequence_log (
@@ -254,6 +274,101 @@ function insertServicesLead(l) {
   db.prepare(`INSERT INTO services_leads(id,name,email,website,message) VALUES(@id,@name,@email,@website,@message)`).run(l);
 }
 
+// ── CONTACT MEMORY (Anti-Dup + Persistence) ──────────────────
+const memoryGetByPhone = db.prepare('SELECT * FROM contact_memory WHERE phone = ?');
+const memoryInsert = db.prepare(`
+  INSERT OR IGNORE INTO contact_memory(phone, lead_id, company, city, sector, lang, has_website, first_seen, last_contacted, contact_count, status, notes)
+  VALUES(@phone, @lead_id, @company, @city, @sector, @lang, @has_website, @first_seen, @last_contacted, @contact_count, @status, @notes)
+`);
+const memoryUpdate = db.prepare(`
+  UPDATE contact_memory SET
+    lead_id=@lead_id, company=@company, city=@city, sector=@sector,
+    lang=@lang, has_website=@has_website, last_contacted=@last_contacted,
+    contact_count=@contact_count, status=@status, notes=@notes
+  WHERE phone=@phone
+`);
+const memoryCountByPhone = db.prepare('SELECT COUNT(*) as n FROM contact_memory WHERE phone = ?');
+const memoryCountNew = db.prepare("SELECT COUNT(*) as n FROM contact_memory WHERE status = 'new' AND has_website = 0");
+const memoryAll = db.prepare('SELECT * FROM contact_memory ORDER BY first_seen DESC LIMIT 500');
+
+function getMemoryByPhone(phone) {
+  if (!phone || phone.trim().length < 5) return null;
+  return memoryGetByPhone.get(phone.trim());
+}
+
+function isDuplicatePhone(phone) {
+  if (!phone || phone.trim().length < 5) return false;
+  const row = memoryGetByPhone.get(phone.trim());
+  return !!row;
+}
+
+function recordMemory(entry) {
+  const normalizedPhone = (entry.phone || '').trim();
+  if (!normalizedPhone) return null;
+  const existing = memoryGetByPhone.get(normalizedPhone);
+  if (existing) {
+    memoryUpdate.run({
+      lead_id: entry.lead_id || existing.lead_id,
+      company: entry.company || existing.company,
+      city: entry.city || existing.city,
+      sector: entry.sector || existing.sector,
+      lang: entry.lang || existing.lang,
+      has_website: entry.has_website !== undefined ? entry.has_website : existing.has_website,
+      last_contacted: entry.last_contacted || existing.last_contacted,
+      contact_count: (existing.contact_count || 0) + (entry.increment ? 1 : 0),
+      status: entry.status || existing.status,
+      notes: entry.notes || existing.notes,
+      phone: normalizedPhone
+    });
+    return { action: 'updated', existing: true };
+  } else {
+    memoryInsert.run({
+      phone: normalizedPhone,
+      lead_id: entry.lead_id || '',
+      company: entry.company || '',
+      city: entry.city || '',
+      sector: entry.sector || '',
+      lang: entry.lang || 'en',
+      has_website: entry.has_website || 0,
+      first_seen: entry.first_seen || new Date().toISOString(),
+      last_contacted: entry.last_contacted || null,
+      contact_count: entry.contact_count || 0,
+      status: entry.status || 'new',
+      notes: entry.notes || ''
+    });
+    return { action: 'inserted', existing: false };
+  }
+}
+
+function markContacted(phone, contactedAt) {
+  const normalizedPhone = (phone || '').trim();
+  if (!normalizedPhone) return;
+  const existing = memoryGetByPhone.get(normalizedPhone);
+  if (existing) {
+    memoryUpdate.run({
+      lead_id: existing.lead_id,
+      company: existing.company,
+      city: existing.city,
+      sector: existing.sector,
+      lang: existing.lang,
+      has_website: existing.has_website,
+      last_contacted: contactedAt || new Date().toISOString(),
+      contact_count: (existing.contact_count || 0) + 1,
+      status: 'contacted',
+      notes: existing.notes,
+      phone: normalizedPhone
+    });
+  }
+}
+
+function getNewNoWebsiteCount() {
+  return memoryCountNew.get();
+}
+
+function getAllMemory() {
+  return memoryAll.all();
+}
+
 module.exports = {
   db,
   getContact, getAllContacts, upsertContact, updateContact, deleteContact,
@@ -263,5 +378,8 @@ module.exports = {
   insertReply, getAllReplies,
   addRevenue, getRevenueSummary, getRevenueByMonth,
   getPipelineStats, insertServicesLead,
-  contactsCount
+  contactsCount,
+  // Contact Memory (Anti-Dup + Persistence)
+  getMemoryByPhone, isDuplicatePhone, recordMemory, markContacted,
+  getNewNoWebsiteCount, getAllMemory
 };

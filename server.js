@@ -9,6 +9,7 @@ const path = require('path');
 const cors = require('cors');
 const cron = require('node-cron');
 const dns  = require('dns');
+const puppeteer = require('puppeteer');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ── NEW MODULES ───────────────────────────────────────────────
@@ -30,23 +31,129 @@ async function generateAIEmail(lead, audit, _retry) {
   if (!ai) return null;
   try {
     const model = ai.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const issues = (audit && audit.issues && audit.issues.length) ? audit.issues.join(', ') : 'no major technical issues found';
-    const lossAmt = `$${getEffectiveLoss(audit, lead.sector).toLocaleString('en-US')}/month`;
-    const score   = (audit && audit.score != null) ? audit.score : 'N/A';
+    const senderName = process.env.SENDER_NAME || 'SA';
     const hasWebsite = lead.hasWebsite;
 
-    const senderName = process.env.SENDER_NAME || 'SA';
-    const specificFlaw = (() => {
-      const issueList = (audit && audit.issues && audit.issues.length) ? audit.issues : [];
-      if (issueList.some(i => /mobile/i.test(i))) return 'missing mobile click-to-call button (most of your visitors are on phones)';
-      if (issueList.some(i => /ssl/i.test(i))) return 'missing SSL certificate (browsers show a security warning to visitors)';
-      if (issueList.some(i => /slow|speed/i.test(i))) return 'slow page load — site takes over 4 seconds on mobile, most visitors leave before it loads';
-      if (issueList.some(i => /construct/i.test(i))) return '"Under Construction" page still live — you\'re invisible to potential customers searching right now';
-      return 'no online booking system — you\'re losing clients who search at night or on weekends';
-    })();
+    const countryLang = detectCountryLanguage(lead);
 
     const prompt = hasWebsite
-      ? `You are a digital growth consultant doing a "Realistic Audit" cold outreach. Your job is to write a hyper-specific, believable cold email that mentions ONE real technical flaw you spotted — not generic marketing talk.
+      ? generateWebsiteAuditPrompt(lead, audit, senderName)
+      : generateNoWebsitePrompt(lead, countryLang, senderName);
+
+    const subjectPrompt = hasWebsite
+      ? generateSubjectPrompt(lead, audit)
+      : `Write ONE short email subject line (max 60 chars) for an email to "${lead.company}" about their missing website. Write it in ${countryLang.languageName}. Return ONLY the subject text.`;
+
+    const bodyResult    = await model.generateContent(prompt);
+    const body          = bodyResult.response.text().trim();
+    await sleep(1200);
+    const subjectResult = await model.generateContent(subjectPrompt);
+    const subject       = subjectResult.response.text().trim().replace(/^["']|["']$/g, '');
+    return { subject, body, aiGenerated: true };
+  } catch (err) {
+    const msg = err.message || '';
+    if (msg.includes('429') && !_retry) {
+      const match = msg.match(/retry in (\d+)(\.\d+)?s/i);
+      const waitSec = match ? (parseInt(match[1]) + 2) : 45;
+      console.log(`[AI] Rate limited — waiting ${waitSec}s before retry...`);
+      await sleep(waitSec * 1000);
+      return generateAIEmail(lead, audit, true);
+    }
+    console.error('[AI] generateAIEmail error:', msg.slice(0, 120));
+    return null;
+  }
+}
+
+const COUNTRY_LANG_MAP = {
+  ae: { lang: 'ar', name: 'Arabic' },
+  sa: { lang: 'ar', name: 'Arabic' },
+  qa: { lang: 'ar', name: 'Arabic' },
+  kw: { lang: 'ar', name: 'Arabic' },
+  eg: { lang: 'ar', name: 'Arabic' },
+  gb: { lang: 'en', name: 'English' },
+  us: { lang: 'en', name: 'English' },
+  ca: { lang: 'en', name: 'English' },
+  fr: { lang: 'fr', name: 'French' },
+  de: { lang: 'de', name: 'German' },
+  es: { lang: 'es', name: 'Spanish' },
+  it: { lang: 'it', name: 'Italian' },
+  nl: { lang: 'nl', name: 'Dutch' },
+  pt: { lang: 'pt', name: 'Portuguese' },
+  br: { lang: 'pt', name: 'Portuguese' },
+  mx: { lang: 'es', name: 'Spanish' },
+  ar: { lang: 'es', name: 'Spanish' },
+  sg: { lang: 'en', name: 'English' },
+  hk: { lang: 'en', name: 'English' },
+  jp: { lang: 'ja', name: 'Japanese' },
+  kr: { lang: 'ko', name: 'Korean' },
+  in: { lang: 'en', name: 'English' },
+  au: { lang: 'en', name: 'English' },
+  ng: { lang: 'en', name: 'English' },
+  ke: { lang: 'en', name: 'English' },
+  za: { lang: 'en', name: 'English' },
+  th: { lang: 'th', name: 'Thai' },
+  my: { lang: 'en', name: 'English' },
+  id: { lang: 'id', name: 'Indonesian' },
+  ph: { lang: 'en', name: 'English' },
+  pl: { lang: 'pl', name: 'Polish' },
+  se: { lang: 'sv', name: 'Swedish' },
+  no: { lang: 'no', name: 'Norwegian' },
+  dk: { lang: 'da', name: 'Danish' },
+  at: { lang: 'de', name: 'German' },
+  ch: { lang: 'de', name: 'German' },
+  be: { lang: 'fr', name: 'French' },
+  gr: { lang: 'el', name: 'Greek' },
+  il: { lang: 'he', name: 'Hebrew' },
+  pk: { lang: 'en', name: 'English' },
+  bd: { lang: 'en', name: 'English' },
+  lk: { lang: 'en', name: 'English' },
+  nz: { lang: 'en', name: 'English' },
+  tr: { lang: 'tr', name: 'Turkish' },
+};
+
+function detectCountryLanguage(lead) {
+  const gl = lead.gl || '';
+  return COUNTRY_LANG_MAP[gl] || { lang: 'en', name: 'English' };
+}
+
+function generateNoWebsitePrompt(lead, langInfo, senderName) {
+  return `You are a digital growth consultant making a "Technical Observation" — NOT a sales pitch.
+
+Lead Name: ${lead.company}
+Lead Location: ${lead.city}
+Niche: ${lead.sector}
+Status: Found via Google Maps, verified NO website.
+
+Write a short outreach message in ${langInfo.name} (${langInfo.lang}).
+
+Rules:
+- NOT a sales pitch — it must be a Technical Observation
+- Mention that their business is visible on Google Maps but lacks a digital gateway (website), which results in losing mobile customers
+- State you have already created a Glassmorphism UI mockup specifically for ${lead.company} to show them how a modern site would look
+- Keep it under 100 words
+- Professional and helpful tone
+- End with: "I can send you the mockup — would you like to see it?"
+- Sign off as: ${senderName}
+- Write ONLY the message body, no subject line, no intro text`;
+}
+
+function generateWebsiteAuditPrompt(lead, audit, senderName) {
+  const issues = (audit && audit.issues && audit.issues.length) ? audit.issues.join(', ') : 'no major technical issues found';
+  const lossAmt = `$${getEffectiveLoss(audit, lead.sector).toLocaleString('en-US')}/month`;
+  const score   = (audit && audit.score != null) ? audit.score : 'N/A';
+
+  const specificFlaw = (() => {
+    const issueList = (audit && audit.issues && audit.issues.length) ? audit.issues : [];
+    if (issueList.some(i => /mobile/i.test(i))) return 'missing mobile click-to-call button (most of your visitors are on phones)';
+    if (issueList.some(i => /ssl/i.test(i))) return 'missing SSL certificate (browsers show a security warning to visitors)';
+    if (issueList.some(i => /slow|speed/i.test(i))) return 'slow page load — site takes over 4 seconds on mobile, most visitors leave before it loads';
+    if (issueList.some(i => /construct/i.test(i))) return '"Under Construction" page still live — you\'re invisible to potential customers searching right now';
+    return 'no online booking system — you\'re losing clients who search at night or on weekends';
+  })();
+
+  const langInfo = detectCountryLanguage(lead);
+
+  return `You are a digital growth consultant doing a "Realistic Audit" cold outreach. Write in ${langInfo.name} (${langInfo.lang}).
 
 Write a SHORT cold email (max 180 words) to the owner of "${lead.company}", a ${lead.sector || 'business'} in ${lead.city}.
 
@@ -58,53 +165,25 @@ Audit data:
 
 Rules:
 - Start with "Hi,"
-- Second sentence: state the ONE specific flaw you found (use the "Key flaw found" above verbatim or rephrased naturally)
-- Briefly explain why this costs them money (use the revenue loss figure)
+- Second sentence: state the ONE specific flaw you found
+- Briefly explain why this costs them money
 - Offer: free prototype or short screen-recording showing exactly how you'd fix it — zero commitment
-- End with this exact line: "I can send you a free prototype or a short video showing exactly how I'd fix this for ${lead.company}. Would you like to see it?"
+- End with: "I can send you a free prototype or a short video showing exactly how I'd fix this for ${lead.company}. Would you like to see it?"
 - Sign off as: ${senderName}
 - No markdown, headers, or bullet symbols except ✅ for the offer
 - No unsubscribe footer
-- Write ONLY the email body, no subject line`
-      : `You are a digital growth consultant doing a "Realistic Audit" cold outreach.
-
-Write a SHORT cold email (max 150 words) to the owner of "${lead.company}", a ${lead.sector || 'business'} in ${lead.city} that has NO website.
-
-Rules:
-- Start with "Hi,"
-- Mention you searched for ${lead.sector || 'businesses'} in ${lead.city} and couldn't find their website
-- State a specific consequence: "80% of your potential clients search Google before calling — right now, those people go straight to your competitors"
-- Offer: free prototype showing how a professional website with 24/7 automated booking would look for their specific business — no commitment
-- End with this exact line: "I can send you a free prototype or a short video showing exactly how I'd fix this for ${lead.company}. Would you like to see it?"
-- Sign off as: ${senderName}
-- No markdown or bullet symbols except ✅ for the offer
-- No unsubscribe footer
 - Write ONLY the email body, no subject line`;
+}
 
-    const subjectPrompt = hasWebsite
-      ? `Write ONE compelling cold email subject line (max 60 chars) for an email about website issues causing revenue loss of ${lossAmt} for "${lead.company}". Use urgency if score < 60. Return ONLY the subject line text, nothing else. Score: ${score}`
-      : `Write ONE compelling cold email subject line (max 60 chars) for an email to "${lead.company}" about them having no website and losing customers. Return ONLY the subject line text, nothing else.`;
+function generateSubjectPrompt(lead, audit) {
+  const lossAmt = lead.hasWebsite ? `$${getEffectiveLoss(audit, lead.sector).toLocaleString('en-US')}/month` : '';
+  const score   = (audit && audit.score != null) ? audit.score : 'N/A';
+  const langInfo = detectCountryLanguage(lead);
 
-    // Generate body first, then subject (sequential to avoid hitting rate limits hard)
-    const bodyResult    = await model.generateContent(prompt);
-    const body          = bodyResult.response.text().trim();
-    await sleep(1200); // small gap to avoid per-minute quota burst
-    const subjectResult = await model.generateContent(subjectPrompt);
-    const subject       = subjectResult.response.text().trim().replace(/^["']|["']$/g, '');
-    return { subject, body, aiGenerated: true };
-  } catch (err) {
-    const msg = err.message || '';
-    // 429 rate limit — extract retry-after seconds and wait, then try once more
-    if (msg.includes('429') && !_retry) {
-      const match = msg.match(/retry in (\d+)(\.\d+)?s/i);
-      const waitSec = match ? (parseInt(match[1]) + 2) : 45;
-      console.log(`[AI] Rate limited — waiting ${waitSec}s before retry...`);
-      await sleep(waitSec * 1000);
-      return generateAIEmail(lead, audit, true); // one retry
-    }
-    console.error('[AI] generateAIEmail error:', msg.slice(0, 120));
-    return null;
+  if (lead.hasWebsite) {
+    return `Write ONE compelling cold email subject line (max 60 chars) for an email about website issues causing revenue loss of ${lossAmt} for "${lead.company}". Write it in ${langInfo.name}. Use urgency if score < 60. Return ONLY the subject line text, nothing else. Score: ${score}`;
   }
+  return `Write ONE short email subject line (max 60 chars) for an email to "${lead.company}" about their missing website. Write it in ${langInfo.name}. Return ONLY the subject text.`;
 }
 
 async function generateEmailTemplate(lead, sender, audit) {
@@ -177,9 +256,12 @@ function applyEnvVars(vars) {
 }
 
 function isQueuedLead(item) {
-  const status = String(item?.status || '').toLowerCase();
-  if (item?.sent || item?.emailSent) return false;
-  return !status || status === 'pending' || status === 'queued';
+  if (!item) return false;
+  const status = String(item.status || '').toLowerCase();
+  if (item.sent || item.emailSent || item.failed) return false;
+  const isQueued = !status || status === 'pending' || status === 'queued';
+  console.log(`[Queue] isQueuedLead: ${item.company || 'unknown'}, status=${status}, result=${isQueued}`);
+  return isQueued;
 }
 
 const SENSITIVE_KEYS = new Set([
@@ -487,18 +569,106 @@ function isAuthError(err) {
 }
 
 // ── SEARCH MATRIX ─────────────────────────────────────────────
+const GLOBAL_SECTORS = [
+  'law firm', 'solicitor', 'attorney', 'legal services',
+  'dental clinic', 'dentist', 'orthodontist', 'cosmetic dentist',
+  'aesthetic clinic', 'beauty clinic', 'medspa', 'cosmetic clinic',
+  'medical clinic', 'doctor', 'physician', 'health clinic',
+  'real estate agency', 'property agent', 'realtor',
+  'plumbing service', 'plumber', 'pipe repair',
+  'hvac contractor', 'air conditioning', 'heating contractor',
+  'restaurant', 'cafe', 'bistro', 'diner',
+  'accountant', 'accounting firm', 'bookkeeper', 'tax advisor',
+  'cleaning service', 'landscaping', 'electrician', 'locksmith', 'pest control',
+  'car dealership', 'auto repair', 'mechanic',
+  'architecture firm', 'interior designer',
+  'marketing agency', 'advertising agency',
+  'construction company', 'contractor', 'roofing contractor', 'roof repair',
+  'fitness center', 'gym', 'personal trainer',
+  'veterinary clinic', 'pet grooming',
+  'pharmacy', 'drugstore',
+  'bakery', 'catering service',
+  'photography studio', 'wedding photographer',
+  'insurance agency', 'insurance broker',
+];
+
 const SEARCH_MATRIX = [
-  { city:'New York',    gl:'us', hl:'en', lang:'en', ll:'40.7128,-74.0060',   sectors:['dental clinic','aesthetic clinic','medical clinic','orthodontist','cosmetic dentist','plumbing service','hvac contractor','real estate agency'] },
-  { city:'Los Angeles', gl:'us', hl:'en', lang:'en', ll:'34.0522,-118.2437',  sectors:['dental clinic','aesthetic clinic','medical clinic','orthodontist','cosmetic dentist','plumbing service','hvac contractor','real estate agency'] },
-  { city:'London',      gl:'gb', hl:'en', lang:'en', ll:'51.5074,-0.1278',    sectors:['dental clinic','aesthetic clinic','medical clinic','orthodontist','cosmetic dentist','plumbing service','hvac contractor','real estate agency'] },
-  { city:'Paris',       gl:'fr', hl:'fr', lang:'fr', ll:'48.8566,2.3522',     sectors:["clinique dentaire","clinique esthétique",'cabinet médical','immobilier','agence immobilière','plomberie','climatisation'] },
-  { city:'Dubai',       gl:'ae', hl:'ar', lang:'ar', ll:'25.2048,55.2708',    sectors:['dental clinic','aesthetic clinic','medical clinic','real estate agency','plumbing service','hvac contractor'] },
-  { city:'Abu Dhabi',   gl:'ae', hl:'ar', lang:'ar', ll:'24.4539,54.3773',    sectors:['dental clinic','aesthetic clinic','medical clinic','real estate agency','plumbing service','hvac contractor'] },
-  { city:'Singapore',   gl:'sg', hl:'en', lang:'en', ll:'1.3521,103.8198',    sectors:['dental clinic','aesthetic clinic','medical clinic','real estate agency','plumbing service','hvac contractor'] },
-  { city:'Hong Kong',   gl:'hk', hl:'en', lang:'en', ll:'22.3193,114.1694',   sectors:['dental clinic','aesthetic clinic','medical clinic','real estate agency','plumbing service','hvac contractor'] },
-  { city:'São Paulo',   gl:'br', hl:'pt', lang:'pt', ll:'-23.5505,-46.6333',  sectors:['clínica odontológica','clínica estética','clínica médica','imobiliária','encanador','ar condicionado'] },
-  { city:'Sydney',      gl:'au', hl:'en', lang:'en', ll:'-33.8688,151.2093',  sectors:['dental clinic','aesthetic clinic','medical clinic','real estate agency','plumbing service','hvac contractor'] },
-  { city:'Melbourne',   gl:'au', hl:'en', lang:'en', ll:'-37.8136,144.9631',  sectors:['dental clinic','aesthetic clinic','medical clinic','real estate agency','plumbing service','hvac contractor'] },
+  { city:'New York',    gl:'us', hl:'en', lang:'en', ll:'40.7128,-74.0060' },
+  { city:'Los Angeles', gl:'us', hl:'en', lang:'en', ll:'34.0522,-118.2437' },
+  { city:'Chicago',     gl:'us', hl:'en', lang:'en', ll:'41.8781,-87.6298' },
+  { city:'Houston',     gl:'us', hl:'en', lang:'en', ll:'29.7604,-95.3698' },
+  { city:'Miami',       gl:'us', hl:'en', lang:'en', ll:'25.7617,-80.1918' },
+  { city:'London',      gl:'gb', hl:'en', lang:'en', ll:'51.5074,-0.1278' },
+  { city:'Manchester',  gl:'gb', hl:'en', lang:'en', ll:'53.4808,-2.2426' },
+  { city:'Birmingham',  gl:'gb', hl:'en', lang:'en', ll:'52.4862,-1.8904' },
+  { city:'Paris',       gl:'fr', hl:'fr', lang:'fr', ll:'48.8566,2.3522' },
+  { city:'Lyon',        gl:'fr', hl:'fr', lang:'fr', ll:'45.7640,4.8357' },
+  { city:'Dubai',       gl:'ae', hl:'en', lang:'en', ll:'25.2048,55.2708' },
+  { city:'Abu Dhabi',   gl:'ae', hl:'ar', lang:'ar', ll:'24.4539,54.3773' },
+  { city:'Riyadh',      gl:'sa', hl:'ar', lang:'ar', ll:'24.7136,46.6753' },
+  { city:'Jeddah',      gl:'sa', hl:'ar', lang:'ar', ll:'21.5433,39.1728' },
+  { city:'Doha',        gl:'qa', hl:'en', lang:'en', ll:'25.2854,51.5310' },
+  { city:'Kuwait City', gl:'kw', hl:'ar', lang:'ar', ll:'29.3759,47.9774' },
+  { city:'Singapore',   gl:'sg', hl:'en', lang:'en', ll:'1.3521,103.8198' },
+  { city:'Hong Kong',   gl:'hk', hl:'en', lang:'en', ll:'22.3193,114.1694' },
+  { city:'Tokyo',       gl:'jp', hl:'ja', lang:'ja', ll:'35.6762,139.6503' },
+  { city:'Osaka',       gl:'jp', hl:'ja', lang:'ja', ll:'34.6937,135.5023' },
+  { city:'Seoul',       gl:'kr', hl:'ko', lang:'ko', ll:'37.5665,126.9780' },
+  { city:'Mumbai',      gl:'in', hl:'en', lang:'en', ll:'19.0760,72.8777' },
+  { city:'Delhi',       gl:'in', hl:'en', lang:'en', ll:'28.7041,77.1025' },
+  { city:'Bangalore',   gl:'in', hl:'en', lang:'en', ll:'12.9716,77.5946' },
+  { city:'Sydney',      gl:'au', hl:'en', lang:'en', ll:'-33.8688,151.2093' },
+  { city:'Melbourne',   gl:'au', hl:'en', lang:'en', ll:'-37.8136,144.9631' },
+  { city:'Brisbane',    gl:'au', hl:'en', lang:'en', ll:'-27.4698,153.0251' },
+  { city:'Toronto',     gl:'ca', hl:'en', lang:'en', ll:'43.6532,-79.3832' },
+  { city:'Vancouver',   gl:'ca', hl:'en', lang:'en', ll:'49.2827,-123.1207' },
+  { city:'Montreal',    gl:'ca', hl:'en', lang:'en', ll:'45.5017,-73.5673' },
+  { city:'Berlin',      gl:'de', hl:'de', lang:'de', ll:'52.5200,13.4050' },
+  { city:'Munich',      gl:'de', hl:'de', lang:'de', ll:'48.1351,11.5820' },
+  { city:'Amsterdam',   gl:'nl', hl:'nl', lang:'nl', ll:'52.3676,4.9041' },
+  { city:'Madrid',      gl:'es', hl:'es', lang:'es', ll:'40.4168,-3.7038' },
+  { city:'Barcelona',   gl:'es', hl:'es', lang:'es', ll:'41.3851,2.1734' },
+  { city:'Rome',        gl:'it', hl:'it', lang:'it', ll:'41.9028,12.4964' },
+  { city:'Milan',       gl:'it', hl:'it', lang:'it', ll:'45.4642,9.1900' },
+  { city:'Istanbul',    gl:'tr', hl:'tr', lang:'tr', ll:'41.0082,28.9784' },
+  { city:'São Paulo',   gl:'br', hl:'pt', lang:'pt', ll:'-23.5505,-46.6333' },
+  { city:'Rio de Janeiro', gl:'br', hl:'pt', lang:'pt', ll:'-22.9068,-43.1729' },
+  { city:'Mexico City', gl:'mx', hl:'es', lang:'es', ll:'19.4326,-99.1332' },
+  { city:'Buenos Aires', gl:'ar', hl:'es', lang:'es', ll:'-34.6037,-58.3816' },
+  { city:'Lagos',       gl:'ng', hl:'en', lang:'en', ll:'6.5244,3.3792' },
+  { city:'Nairobi',     gl:'ke', hl:'en', lang:'en', ll:'-1.2921,36.8219' },
+  { city:'Cairo',       gl:'eg', hl:'ar', lang:'ar', ll:'30.0444,31.2357' },
+  { city:'Johannesburg', gl:'za', hl:'en', lang:'en', ll:'-26.2041,28.0473' },
+  { city:'Bangkok',     gl:'th', hl:'th', lang:'th', ll:'13.7563,100.5018' },
+  { city:'Kuala Lumpur', gl:'my', hl:'en', lang:'en', ll:'3.1390,101.6869' },
+  { city:'Jakarta',     gl:'id', hl:'id', lang:'id', ll:'-6.2088,106.8456' },
+  { city:'Manila',      gl:'ph', hl:'en', lang:'en', ll:'14.5995,120.9842' },
+  { city:'Warsaw',      gl:'pl', hl:'pl', lang:'pl', ll:'52.2297,21.0122' },
+  { city:'Stockholm',   gl:'se', hl:'sv', lang:'sv', ll:'59.3293,18.0686' },
+  { city:'Oslo',        gl:'no', hl:'no', lang:'no', ll:'59.9139,10.7522' },
+  { city:'Copenhagen',  gl:'dk', hl:'da', lang:'da', ll:'55.6761,12.5683' },
+  { city:'Vienna',      gl:'at', hl:'de', lang:'de', ll:'48.2082,16.3738' },
+  { city:'Zurich',      gl:'ch', hl:'de', lang:'de', ll:'47.3769,8.5417' },
+  { city:'Brussels',    gl:'be', hl:'fr', lang:'fr', ll:'50.8503,4.3517' },
+  { city:'Lisbon',      gl:'pt', hl:'pt', lang:'pt', ll:'38.7223,-9.1393' },
+  { city:'Athens',      gl:'gr', hl:'el', lang:'el', ll:'37.9838,23.7275' },
+  { city:'Tel Aviv',    gl:'il', hl:'he', lang:'he', ll:'32.0853,34.7818' },
+  { city:'Karachi',     gl:'pk', hl:'en', lang:'en', ll:'24.8607,67.0011' },
+  { city:'Lahore',      gl:'pk', hl:'en', lang:'en', ll:'31.5204,74.3587' },
+  { city:'Dhaka',       gl:'bd', hl:'en', lang:'en', ll:'23.8103,90.4125' },
+  { city:'Colombo',     gl:'lk', hl:'en', lang:'en', ll:'6.9271,79.8612' },
+  { city:'Auckland',    gl:'nz', hl:'en', lang:'en', ll:'-36.8485,174.7633' },
+  { city:'Edinburgh',   gl:'gb', hl:'en', lang:'en', ll:'55.9533,-3.1883' },
+  { city:'Leeds',       gl:'gb', hl:'en', lang:'en', ll:'53.8008,-1.5491' },
+  { city:'Liverpool',   gl:'gb', hl:'en', lang:'en', ll:'53.4084,-2.9916' },
+  { city:'Phoenix',     gl:'us', hl:'en', lang:'en', ll:'33.4484,-112.0740' },
+  { city:'Dallas',      gl:'us', hl:'en', lang:'en', ll:'32.7767,-96.7970' },
+  { city:'San Francisco', gl:'us', hl:'en', lang:'en', ll:'37.7749,-122.4194' },
+  { city:'Seattle',     gl:'us', hl:'en', lang:'en', ll:'47.6062,-122.3321' },
+  { city:'Boston',      gl:'us', hl:'en', lang:'en', ll:'42.3601,-71.0589' },
+  { city:'Atlanta',     gl:'us', hl:'en', lang:'en', ll:'33.7490,-84.3880' },
+  { city:'Las Vegas',   gl:'us', hl:'en', lang:'en', ll:'36.1699,-115.1398' },
+  { city:'Denver',      gl:'us', hl:'en', lang:'en', ll:'39.7392,-104.9903' },
 ];
 
 // ── CITY MAP (for targeted search) ───────────────────────────
@@ -796,79 +966,172 @@ const T = {
   }
 };
 
-// ── SERPER SEARCH ────────────────────────────────────────────
-async function searchSerper(p) {
-  const body = { q: `${p.sector} in ${p.city}`, gl: p.gl, hl: p.hl, num: p.num || 20 };
-  if (p.ll) body.ll = p.ll;
-  const res = await fetch('https://google.serper.dev/maps', {
-    method: 'POST',
-    headers: { 'X-API-KEY': process.env.SERPER_API_KEY, 'Content-Type': 'application/json', 'User-Agent': pickRandomUserAgent() },
-    body: JSON.stringify(body)
+// ── PUPPETEER GOOGLE MAPS SCRAPER ────────────────────────────
+let sharedBrowser = null;
+
+async function getBrowser() {
+  if (sharedBrowser && (await sharedBrowser.pages()).length > 0) return sharedBrowser;
+  const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH
+    || '/usr/bin/google-chrome-stable'
+    || '/usr/bin/brave-browser';
+  console.log(`[Puppeteer] Launching browser: ${chromePath} (headless: new)`);
+  sharedBrowser = await puppeteer.launch({
+    headless: 'new',
+    executablePath: chromePath,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-features=TranslateUI',
+      '--disable-ipc-flooding-protection',
+      '--disable-extensions',
+      '--disable-hang-monitor',
+      '--disable-sync',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--single-process',
+      '--ignore-certificate-errors'
+    ]
   });
-  console.log(`[Search] Response Status: ${res.status} ${p.city} / ${p.sector}`);
-  if (!res.ok) throw new Error(`Serper ${res.status}`);
-  return (await res.json()).places || [];
+  return sharedBrowser;
 }
 
-const SEARCH_USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0'
-];
-
-function pickRandomUserAgent() {
-  return SEARCH_USER_AGENTS[Math.floor(Math.random() * SEARCH_USER_AGENTS.length)];
+async function humanDelay(min = 2000, max = 5000) {
+  const delay = min + Math.floor(Math.random() * (max - min));
+  await sleep(delay);
 }
 
-function jitterDelay() {
-  return sleep(5000 + Math.floor(Math.random() * 5001));
-}
-
-async function searchSerperMulti(city, gl, hl, lang, ll, sectors) {
-  const MAX_PAGES = 10;
-  const NUM_PER_PAGE = 20;
+async function scrapeGoogleMaps(sector, city, ll, maxResults = 100) {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
   const results = [];
   const seen = new Set();
 
-  for (const sector of (sectors || [])) {
-    try {
-      await jitterDelay();
-      for (let page = 0; page < MAX_PAGES; page++) {
-        const reqBody = {
-          q: `${sector} in ${city}`,
-          gl, hl,
-          num: NUM_PER_PAGE,
-          start: page * NUM_PER_PAGE
-        };
-        if (ll) reqBody.ll = ll;
+  await page.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+  );
 
-        const res = await fetch('https://google.serper.dev/maps', {
-          method: 'POST',
-          headers: { 'X-API-KEY': process.env.SERPER_API_KEY, 'Content-Type': 'application/json', 'User-Agent': pickRandomUserAgent() },
-          body: JSON.stringify(reqBody)
-        });
-        console.log(`[Search] ${res.status} ${city} / ${sector} / page${page + 1}`);
-        if (!res.ok) break;
-        const data = await res.json();
-        const places = data.places || [];
-        if (!places.length) break;
-        let added = 0;
-        for (const place of places) {
-          const key = `${(place.title || '').trim().toLowerCase()}__${city.toLowerCase()}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            results.push({ ...place, sector, lang });
-            added++;
-          }
+  const query = encodeURIComponent(`${sector} in ${city}`);
+  const url = ll
+    ? `https://www.google.com/maps/search/${query}/@${ll},12z/data=!3m1!4b1`
+    : `https://www.google.com/maps/search/${query}`;
+
+  console.log(`[Maps] Navigating: ${url}`);
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await humanDelay(3000, 5000);
+
+  try {
+    await page.waitForSelector('[role="feed"]', { timeout: 15000 });
+  } catch {
+    console.log(`[Maps] No feed found for ${sector} in ${city}`);
+    await page.close();
+    return results;
+  }
+
+  for (let scroll = 0; scroll < 15; scroll++) {
+    if (results.length >= maxResults) break;
+    await page.evaluate(() => {
+      const feed = document.querySelector('[role="feed"]');
+      if (feed) feed.scrollTop = feed.scrollHeight;
+    });
+    await humanDelay(1500, 3000);
+  }
+
+  const items = await page.evaluate(() => {
+    const feed = document.querySelector('[role="feed"]');
+    if (!feed) return [];
+    const cards = feed.querySelectorAll('div[role="article"]');
+    const data = [];
+    cards.forEach(card => {
+      const nameEl = card.querySelector('div[aria-label]');
+      const name = nameEl ? nameEl.getAttribute('aria-label') : '';
+      const allText = card.innerText || '';
+      const lines = allText.split('\n').map(l => l.trim()).filter(Boolean);
+
+      let phone = '';
+      let address = '';
+      let website = '';
+      let rating = 0;
+      let reviewsCount = 0;
+
+      for (const line of lines) {
+        if (/^\+?\d[\d\s\-()]{6,}$/.test(line) || /^[\d\s\-()]{6,}$/.test(line)) {
+          if (!phone) phone = line;
+        } else if (/^\d+\s/.test(line) && /[A-Za-z]{2,}/.test(line) && !line.includes('@')) {
+          if (!address) address = line;
+        } else if (/\/www\./.test(line) || /\.(com|net|org|io|co|info|biz|dev|app|shop|store|online|site|website)/.test(line.toLowerCase())) {
+          if (!website) website = line;
         }
-        if (added === 0 || places.length < NUM_PER_PAGE) break;
-        if (page < MAX_PAGES - 1) await sleep(1500 + Math.floor(Math.random() * 1500));
+        const ratingMatch = line.match(/(\d+\.?\d*)\s*\(/);
+        if (ratingMatch && !rating) {
+          rating = parseFloat(ratingMatch[1]);
+          const revMatch = line.match(/\((\d[\d,]*)/);
+          if (revMatch) reviewsCount = parseInt(revMatch[1].replace(/,/g, ''));
+        }
       }
+
+      const links = card.querySelectorAll('a');
+      links.forEach(a => {
+        const href = a.getAttribute('href') || '';
+        if (href.includes('/url?q=') || href.includes('www.')) {
+          try {
+            const urlMatch = href.match(/\/url\?q=(https?:\/\/[^&]+)/);
+            if (urlMatch && !website) website = decodeURIComponent(urlMatch[1]);
+          } catch {}
+        }
+      });
+
+      if (name) data.push({ title: name, phone, address, website, rating, reviewsCount });
+    });
+    return data;
+  });
+
+  for (const item of items) {
+    if (results.length >= maxResults) break;
+    const key = (item.title || '').trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push(item);
+  }
+
+  await page.close();
+  console.log(`[Maps] ${sector} in ${city}: ${results.length} results scraped`);
+  return results;
+}
+
+async function searchGoogleMapsMulti(city, gl, hl, lang, ll, sectors) {
+  const results = [];
+  const seen = new Set();
+  const searchSectors = sectors && sectors.length ? sectors : GLOBAL_SECTORS;
+
+  console.log(`[Maps] Starting city: ${city}, sectors: ${searchSectors.length}`);
+
+  for (const sector of searchSectors) {
+    try {
+      await humanDelay(3000, 6000);
+      console.log(`[Maps] Scraping: ${sector} in ${city}`);
+      const places = await scrapeGoogleMaps(sector, city, ll, 60);
+      let added = 0;
+      for (const place of places) {
+        const key = `${(place.title || '').trim().toLowerCase()}__${city.toLowerCase()}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({ ...place, sector, lang });
+          added++;
+        }
+      }
+      console.log(`[Maps] ${city} / ${sector}: ${added} new (total: ${results.length})`);
     } catch (err) {
-      console.log(`[Search] Error ${city} / ${sector}: ${err.message}`);
+      console.log(`[Maps] Error ${city} / ${sector}: ${err.message}`);
     }
   }
+  console.log(`[Maps] City complete: ${results.length} total for ${city}`);
   return results;
 }
 
@@ -888,314 +1151,291 @@ function addToQueue(items) {
   const q = getQueue();
   const ids = new Set(q.map(i => i.id));
   const leads = readJ(LEADS_FILE);
+  let addedCount = 0;
+  let dupCount = 0;
   items.forEach(i => {
-    if (ids.has(i.id)) return;
-    if (isDuplicateLead(i, leads, q)) return;
+    if (ids.has(i.id)) { dupCount++; return; }
+    if (isDuplicateLead(i, leads, q)) { dupCount++; return; }
+    // Ensure status is set to 'queued' so cron scheduler picks it up
+    if (!i.status) i.status = 'queued';
     q.push(i);
+    addedCount++;
   });
   writeQueue(q);
+  console.log(`[Queue] addToQueue: ${addedCount} added, ${dupCount} duplicates skipped (total in queue: ${q.length})`);
 }
 
-function getNextQueued() { return getQueue().find(i => !i.sent && !i.failed) || null; }
+function getNextQueued() {
+  const q = getQueue();
+  const pending = q.filter(i => !i.sent && !i.failed);
+  console.log(`[Queue] getNextQueued: ${q.length} total, ${pending.length} pending items`);
+  if (pending.length > 0) {
+    console.log(`[Queue] First pending: ${pending[0].company} (${pending[0].city}), status=${pending[0].status}, email=${pending[0].email || 'none'}`);
+  }
+  return pending[0] || null;
+}
 
 function markQueueItem(id, patch) {
-  const q = getQueue();
-  const item = q.find(i => i.id === id);
-  if (item) {
-    if (patch.sent)   { item.sent = true;   item.sentAt = new Date().toISOString(); item.email = patch.email || ''; item.accountUsed = patch.accountUsed || ''; item.status = 'Sent'; }
-    if (patch.failed) { item.failed = true; item.failedAt = new Date().toISOString(); }
-  }
-  writeQueue(q);
+   const q = getQueue();
+   const item = q.find(i => i.id === id);
+   if (item) {
+     if (patch.sent)   { item.sent = true;   item.sentAt = new Date().toISOString(); item.email = patch.email || ''; item.accountUsed = patch.accountUsed || ''; item.status = 'Sent'; }
+     if (patch.failed) { item.failed = true; item.failedAt = new Date().toISOString(); item.status = 'Failed'; }
+     writeQueue(q);
+   }
 }
 
-// ── CRON SCHEDULER ───────────────────────────────────────────
+// ── CRON SCHEDULER (auto-send from queue) ─────────────────────
 function startCronScheduler() {
-  if (cronJob) { try { cronJob.destroy(); } catch {} }
+  if (cronRunning) { console.log('[Cron] Already running'); return true; }
+  const pool = getAccountPool();
+  if (!pool.length) { console.log('[Cron] No SMTP accounts — skipping auto-send'); return false; }
+
   const schedule = process.env.CRON_SCHEDULE || '*/2 * * * *';
-  const dailyCap = parseInt(process.env.DAILY_EMAIL_CAP || '200');
-  const sender   = process.env.SENDER_NAME || 'SA';
-  const pool     = getAccountPool();
-
-  if (!pool.length) {
-    broadcast({ type:'cron_error', message:'No SMTP accounts configured. Set SMTP_USER and SMTP_PASS.' });
-    return false;
-  }
-
-  if (!cron.validate(schedule)) {
-    broadcast({ type:'cron_error', message:`Invalid cron schedule: ${schedule}` });
-    return false;
-  }
+  console.log(`[Cron] Starting scheduler with schedule: ${schedule}`);
 
   cronJob = cron.schedule(schedule, async () => {
-    if (cronSendLock) return;
+    if (cronSendLock || isInBounceCooldown()) return;
+    if (cronRunning) return;
+    cronRunning = true;
     cronSendLock = true;
-    cronLastFired = new Date().toISOString();
+
     try {
+      const dailyCap = parseInt(process.env.DAILY_EMAIL_CAP || '200');
       if (totalSentToday >= dailyCap) {
-        broadcast({ type:'cron_cap', message:`Daily cap of ${dailyCap} emails reached. Auto-send idle.`, queueLeft: queueLength() });
+        console.log(`[Cron] Daily cap reached (${totalSentToday}/${dailyCap}) — skipping`);
         return;
       }
+
       const item = getNextQueued();
-      if (!item) {
-        broadcast({ type:'cron_idle', message:'Queue empty — nothing to send.', queueLeft: 0 });
-        return;
-      }
-      const leads0 = readJ(LEADS_FILE);
-      const lead0 = leads0.find(l => l.id === item.id);
-      if (lead0 && !isQueuedLead(lead0)) return;
-
-      // ── Bounce cooldown check ──
-      if (isInBounceCooldown()) {
-        const resumeAt = new Date(bounceCooldownUntil).toLocaleTimeString();
-        broadcast({ type:'bounce_cooldown', message:`🛑 Bounce cooldown active — resuming at ${resumeAt}`, queueLeft:queueLength() });
+      if (!item || !isQueuedLead(item)) {
+        console.log('[Cron] Queue empty – nothing to send');
         return;
       }
 
-      const emailTo = item.email;
-      if (!emailTo || !isValidEmail(emailTo)) {
-        markQueueItem(item.id, { failed:true });
-        logFailedLead(item, 'Invalid or missing email', emailTo);
-        broadcast({ type:'email_skip', message:`⚠ ${item.company}: skipped — invalid email (${emailTo||'none'})`, lead:item.company, queueLeft:queueLength() });
-        return;
-      }
-
+      console.log(`[Cron] Processing queued lead: ${item.company} (${item.city})`);
+      const sender = process.env.SENDER_NAME || 'SA';
       const account = getAccountForSend(pool);
-      const transporter = getTransporter(account);
       const audit = item.audit || {};
-      if (item.hasWebsite && !auditFinished(audit)) {
-        markQueueItem(item.id, { failed:true });
-        const leads = readJ(LEADS_FILE);
-        setLeadStatus(leads, item.id, 'Requires Manual Review');
-        const idx = leads.findIndex(l => l.id === item.id);
-        if (idx !== -1) { leads[idx].reviewRequired = true; writeJ(LEADS_FILE, leads); }
-        broadcast({ type:'email_skip', message:`⚠ ${item.company}: Requires Manual Review (audit not finished)`, lead:item.company, queueLeft:queueLength() });
+
+      // Re-audit if needed and website exists
+      let emailTo = item.email || '';
+      if (!emailTo && item.hasWebsite && item.website) {
+        try {
+          const freshAudit = await analyzeWebsite(item.website);
+          emailTo = freshAudit.email || `info@${getDomain(item.website)}`;
+          audit.score = freshAudit.score;
+          audit.issues = freshAudit.issues;
+          audit.estimatedLoss = freshAudit.estimatedLoss || 0;
+          // Update queue
+          const q2 = getQueue();
+          const qi = q2.find(x => x.id === item.id);
+          if (qi) { qi.email = emailTo; qi.audit = audit; writeQueue(q2); }
+        } catch {
+          emailTo = `info@${getDomain(item.website)}`;
+        }
+      } else if (!emailTo && !item.hasWebsite) {
+        // No website lead — cannot send without email
+        console.log(`[Cron] No email for ${item.company} — marking failed`);
+        markQueueItem(item.id, { failed: true });
         return;
       }
-      broadcast({ type:'ai_generating', message:`🤖 AI generating email for ${item.company}...`, lead:item.company });
-      const tmpl = await generateEmailTemplate(item, sender, audit);
-      const aiTag = tmpl.aiGenerated ? ' [AI]' : '';
+
+      if (!emailTo || !isValidEmail(emailTo)) {
+        console.log(`[Cron] Invalid email for ${item.company}: ${emailTo} — marking failed`);
+        markQueueItem(item.id, { failed: true });
+        logFailedLead(item, 'Invalid or missing email', emailTo);
+        return;
+      }
+
+      // Generate template
+      const lead = { company: item.company, city: item.city, sector: item.sector, hasWebsite: item.hasWebsite, website: item.website, lang: item.lang || 'en' };
+      const tmpl = await generateEmailTemplate(lead, sender, audit);
+
+      // Send email
+      let sendOk = false;
       let lastErr = null;
-      let sent = false;
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const t = getTransporter(account);
-          await t.sendMail({ from: { name: process.env.SENDER_NAME || 'SA', address: account.user }, to: emailTo, subject: tmpl.subject, text: tmpl.body });
-          sent = true;
+          await t.sendMail({ from: { name: sender, address: account.user }, to: emailTo, subject: tmpl.subject, text: tmpl.body });
+          sendOk = true;
           break;
         } catch (err) {
           lastErr = err;
-          const message = smtpErrorMessage(err);
-          broadcast({ type:'email_error', message:`✕ Attempt ${attempt}/3 for ${item.company}: ${message}`, queueLeft:queueLength() });
-          if (isAuthError(err)) break;
+          if (isAuthError(err)) { markAccountError(account.user, smtpErrorMessage(err)); break; }
           if (attempt < 3) await sleep(2000 * attempt);
         }
       }
-      if (sent) {
-        markQueueItem(item.id, { sent:true, email:emailTo, accountUsed:account.user });
-        const leads = readJ(LEADS_FILE);
-        const idx = leads.findIndex(l => l.id === item.id);
-        if (idx !== -1) {
-          leads[idx].status = 'Sent';
-          leads[idx].emailSent = true;
-          leads[idx].emailStatus = `Sent: AI Pitch${aiTag}`;
-          leads[idx].sentAt = new Date().toISOString();
-          leads[idx].sent_at = leads[idx].sentAt;
-          leads[idx].email = emailTo;
-          leads[idx].accountUsed = account.user;
-          leads[idx].aiGenerated = !!tmpl.aiGenerated;
-          writeJ(LEADS_FILE, leads);
-        }
+
+      if (sendOk) {
         recordSuccess();
         markAccountOk(account.user);
+        markQueueItem(item.id, { sent: true, email: emailTo, accountUsed: account.user });
         currentStats.sent++;
-        if (tmpl.aiGenerated) currentStats.aiGenerated = (currentStats.aiGenerated || 0) + 1;
-        if (isAccountCapped(account.user)) {
-          const pool2 = getAccountPool();
-          const remaining = pool2.filter(a => !isAccountCapped(a.user) && getHealth(a.user).status !== 'error');
-          broadcast({ type:'account_capped', message:`📊 ${account.user.split('@')[0]} reached daily cap of ${PER_ACCOUNT_DAILY_CAP}. Switching to next account. (${remaining.length} accounts still available)`, account: account.user });
-        }
+        totalSentToday++;
+        // Sync to leads file
+        const leads = readJ(LEADS_FILE);
+        const idx = leads.findIndex(l => l.id === item.id);
+        if (idx !== -1) { leads[idx].emailSent = true; leads[idx].email = emailTo; leads[idx].sentAt = new Date().toISOString(); leads[idx].accountUsed = account.user; writeJ(LEADS_FILE, leads); }
+        // Track domain
         const domain = getDomain(item.website);
         if (domain) { const domains = readJ(DOMAINS_FILE); if (!domains.includes(domain)) { domains.push(domain); writeJ(DOMAINS_FILE, domains); } }
-        broadcast({ type:'email_sent', message:`✅ Sent${aiTag}: ${item.company} (${item.city}) via ${account.user.split('@')[0]} (${getSentCountToday(account.user)}/${PER_ACCOUNT_DAILY_CAP})`, lead:item.company, city:item.city, email:emailTo, account:account.user, score:audit.score, queueLeft:queueLength(), stats:currentStats, aiGenerated:!!tmpl.aiGenerated });
+        // Mark in memory as contacted
+        const memPhone = (item.phone || '').replace(/\s+/g, '').replace(/[-()]/g, '');
+        if (memPhone.length >= 5) crmDb.markContacted(memPhone, new Date().toISOString());
+        // Sync to CRM
+        try { crmDb.upsertContact({ id: item.id, company: item.company, contact_name: '', email: emailTo, business_type: item.sector || '', city: item.city, website: item.website || '', sequence_stage: 1, sequence_stopped: 0, last_email_sent: new Date().toISOString(), status: 'Contacted', revenue_onetime: 0, revenue_recurring: 0, notes: '', ab_variant: '', opened: 0, replied: 0, reply_sentiment: '', lead_id: item.id }); } catch {}
+        broadcast({ type: 'email_sent', message: `✅ Cron sent: ${item.company} (${item.city})`, lead: item.company, city: item.city, email: emailTo, account: account.user, queueLeft: queueLength(), stats: currentStats });
+        console.log(`[Cron] Email sent to ${item.company} <${emailTo}>`);
       } else {
-        const message = smtpErrorMessage(lastErr);
-        if (isAuthError(lastErr)) {
-          markAccountError(account.user, message);
-          const q = getQueue();
-          const qi = q.find(i => i.id === item.id);
-          if (qi) { delete qi.failed; writeQueue(q); }
-          broadcast({ type:'account_error', account:account.user, message:`Auth Error on ${account.user.split('@')[0]}: ${message}` });
-        } else {
-          const isBounce = isBounceError(lastErr);
-          markQueueItem(item.id, { failed:true });
-          logFailedLead(item, isBounce ? 'Bounce: address not found' : message, emailTo);
-          currentStats.skipped++;
-          if (isBounce) recordBounce(item.company, emailTo, message.slice(0, 80));
-          broadcast({ type:'email_error', message:`✕ ${item.company} failed after 3 attempts: ${message}`, queueLeft:queueLength() });
-        }
+        const errMsg = smtpErrorMessage(lastErr);
+        const isBnc = isBounceError(lastErr);
+        markQueueItem(item.id, { failed: true });
+        if (isBnc) recordBounce(item.company, emailTo, errMsg.slice(0, 80));
+        logFailedLead(item, isBnc ? 'Bounce' : errMsg, emailTo);
+        broadcast({ type: 'email_error', message: `✕ Cron failed: ${item.company} — ${errMsg.slice(0, 60)}`, lead: item.company, queueLeft: queueLength() });
+        console.log(`[Cron] Send failed for ${item.company}: ${errMsg}`);
       }
+
+      // Delay before next
+      await randomDelay();
+    } catch (err) {
+      console.error('[Cron] Error:', err.message);
     } finally {
       cronSendLock = false;
+      cronRunning = false;
+      cronLastFired = new Date().toISOString();
     }
-  }, { scheduled: true });
+  });
 
   cronRunning = true;
-  const ql = queueLength();
-  const aiActive = !!process.env.GEMINI_API_KEY;
-  broadcast({ type:'cron_start', message:`Auto-send active (${schedule}) — ${ql} leads in queue${aiActive ? ' · 🤖 AI mode ON' : ''}`, schedule, queueLeft:ql, accountCount:pool.length, aiActive });
-  // Fire first send immediately without waiting for cron cycle
-  setTimeout(async () => {
-    try {
-      if (cronSendLock) return;
-      cronSendLock = true;
-      if (!cronRunning || botAborted) return;
-      const item = getNextQueued();
-      if (!item) return;
-      const leads0 = readJ(LEADS_FILE);
-      const lead0 = leads0.find(l => l.id === item.id);
-      if (lead0 && !isQueuedLead(lead0)) return;
-      const emailTo = item.email;
-      if (!emailTo) { markQueueItem(item.id, { failed:true }); return; }
-      const account = getAccountForSend(pool);
-      const audit = item.audit || {};
-      if (item.hasWebsite && !auditFinished(audit)) return;
-      // (removed $0 loss guard — prototype-offer email goes to all queued leads)
-      broadcast({ type:'ai_generating', message:`🤖 AI generating first email for ${item.company}...`, lead:item.company });
-      const tmpl = await generateEmailTemplate(item, sender, audit);
-      const aiTag = tmpl.aiGenerated ? ' [AI]' : '';
-      const t = getTransporter(account);
-      await t.sendMail({ from: { name: process.env.SENDER_NAME || 'SA', address: account.user }, to: emailTo, subject: tmpl.subject, text: tmpl.body });
-      markQueueItem(item.id, { sent:true, email:emailTo, accountUsed:account.user });
-      const leads = readJ(LEADS_FILE);
-      const idx = leads.findIndex(l => l.id === item.id);
-      if (idx !== -1) {
-        leads[idx].status = 'Sent';
-        leads[idx].emailSent = true;
-        leads[idx].emailStatus = `Sent: AI Pitch${aiTag}`;
-        leads[idx].sentAt = new Date().toISOString();
-        leads[idx].sent_at = leads[idx].sentAt;
-        leads[idx].email = emailTo;
-        leads[idx].accountUsed = account.user;
-        leads[idx].aiGenerated = !!tmpl.aiGenerated;
-        writeJ(LEADS_FILE, leads);
-      }
-      markAccountOk(account.user);
-      currentStats.sent++;
-      if (tmpl.aiGenerated) currentStats.aiGenerated = (currentStats.aiGenerated || 0) + 1;
-      const domain = getDomain(item.website);
-      if (domain) { const domains = readJ(DOMAINS_FILE); if (!domains.includes(domain)) { domains.push(domain); writeJ(DOMAINS_FILE, domains); } }
-      broadcast({ type:'email_sent', message:`✅ Sent${aiTag}: ${item.company} (${item.city}) via ${account.user.split('@')[0]}`, lead:item.company, city:item.city, email:emailTo, account:account.user, score:audit.score, queueLeft:queueLength(), stats:currentStats, aiGenerated:!!tmpl.aiGenerated });
-    } catch (err) {
-      const message = smtpErrorMessage(err);
-      broadcast({ type:'email_error', message:`✕ First send error: ${message}`, queueLeft:queueLength() });
-    } finally {
-      cronSendLock = false;
-    }
-  }, 2000);
+  broadcast({ type: 'cron_started', message: `Auto-send activated (cap: ${process.env.DAILY_EMAIL_CAP || '200'}/day)` });
+  console.log('[Cron] Scheduler started');
   return true;
 }
 
 function stopCronScheduler() {
   if (cronJob) { try { cronJob.stop(); } catch {} cronJob = null; }
   cronRunning = false;
-  broadcast({ type:'cron_stop', message:'Auto-send paused.', queueLeft:queueLength() });
+  broadcast({ type: 'cron_stopped', message: 'Auto-send stopped.' });
+  console.log('[Cron] Scheduler stopped');
 }
 
-// ── MAIN BOT (SEARCH + AUDIT → QUEUE) ────────────────────────
+// ── FULL MATRIX BOT (all cities + sectors) ────────────────────
 async function runBot() {
   botRunning = true;
   botAborted = false;
-  const campaignId  = uuid();
-  const startedAt   = new Date().toISOString();
-  const searchDelay = parseInt(process.env.SEARCH_DELAY_MS || '2000');
+  const campaignId = uuid();
+  const startedAt = new Date().toISOString();
 
-  currentStats = { found:0, withSite:0, noSite:0, sent:currentStats.sent, skipped:currentStats.skipped, audited:0, queued:0, phase:'searching' };
-  broadcast({ type:'bot_start', message:'Phase 1/2: Searching leads across 11 cities...', stats:currentStats });
-
-  const existingLeads    = readJ(LEADS_FILE);
+  const LEAD_TARGET = 1000;
+  const existingLeads = readJ(LEADS_FILE);
   const contactedDomains = new Set(readJ(DOMAINS_FILE));
-  const existingQueue    = readJ(QUEUE_FILE);
-  const seenKeys         = new Set(existingLeads.map(l => `${(l.company||'').toLowerCase()}__${(l.city||'').toLowerCase()}__${(l.email||'').toLowerCase()}`));
-  const newLeads         = [];
+  const seenKeys = new Set(existingLeads.map(l => `${(l.company || '').toLowerCase()}__${(l.city || '').toLowerCase()}__${(l.email || '').toLowerCase()}`));
+  const allNewLeads = [];
 
-  // ── PHASE 1: SEARCH ──────────────────────────────────────
-  for (let i = 0; i < SEARCH_MATRIX.length; i++) {
-    if (botAborted) break;
-    const p = SEARCH_MATRIX[i];
-    broadcast({ type:'search_start', message:`Searching ${p.city} across multiple keywords...`, pipeline:p.city, step:i+1, total:SEARCH_MATRIX.length, stats:currentStats });
+  let matrixIndex = 0;
+  let loopCount = 0;
+  const maxLoops = Math.ceil(LEAD_TARGET / SEARCH_MATRIX.length) + 2;
+
+  currentStats = { found: 0, withSite: 0, noSite: 0, sent: currentStats.sent, skipped: currentStats.skipped, audited: 0, queued: 0, phase: 'searching' };
+
+  broadcast({ type: 'bot_start', message: `Global search: targeting ${LEAD_TARGET} no-website leads across ${SEARCH_MATRIX.length} cities...`, stats: currentStats });
+
+  while (allNewLeads.length < LEAD_TARGET && loopCount < maxLoops && !botAborted) {
+    const entry = SEARCH_MATRIX[matrixIndex % SEARCH_MATRIX.length];
+    matrixIndex++;
+    loopCount++;
+    const { city, gl, hl, lang, ll } = entry;
+    broadcast({ type: 'search_start', message: `Searching ${city}... (${allNewLeads.length}/${LEAD_TARGET} leads)`, pipeline: city, stats: currentStats });
     try {
-      const places = await searchSerperMulti(p.city, p.gl, p.hl, p.lang, p.ll, p.sectors);
-      let n = 0;
+      const places = await searchGoogleMapsMulti(city, gl, hl, lang, ll, GLOBAL_SECTORS);
+      console.log(`[Search] ${city}: ${places.length} places returned`);
       for (const place of places) {
+        if (botAborted || allNewLeads.length >= LEAD_TARGET) break;
         const company = (place.title || '').trim();
         if (!company) continue;
-        const key    = `${company.toLowerCase()}__${p.city.toLowerCase()}__${(place.email || '').toLowerCase()}`;
+        const leadPhone = place.phone || place.phoneNumber || '';
+        const normalizedPhone = leadPhone.replace(/\s+/g, '').replace(/[-()]/g, '');
+        if (normalizedPhone.length >= 5 && crmDb.isDuplicatePhone(normalizedPhone)) {
+          console.log(`[Memory] Skip duplicate phone: ${leadPhone} — ${company}`);
+          continue;
+        }
+        const key = `${company.toLowerCase()}__${city.toLowerCase()}__${(leadPhone || '').toLowerCase()}`;
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);
         const website = place.website || '';
-        const domain  = getDomain(website);
+        if (website) continue;
+        const domain = getDomain(website);
         if (domain && contactedDomains.has(domain)) continue;
         const lead = {
-          id: uuid(), company, name:company,
-          city:p.city, sector:place.sector || p.sectors[0], lang:p.lang,
-          phone:place.phoneNumber || place.phone || '',
-          address:place.address || '',
-          website, rating:parseFloat(place.rating)||0, reviewsCount:parseInt(place.reviewsCount)||0,
-          hasWebsite:!!website, email:'', emailSent:false, sentAt:null,
-          audit:null, score:null, accountUsed:'', createdAt:new Date().toISOString()
+          id: uuid(), company, name: company,
+          city, sector: place.sector || GLOBAL_SECTORS[0], lang,
+          phone: leadPhone,
+          address: place.address || '',
+          website, rating: parseFloat(place.rating) || 0, reviewsCount: parseInt(place.reviewsCount) || 0,
+          hasWebsite: false, email: '', emailSent: false, sentAt: null,
+          audit: null, score: null, accountUsed: '', createdAt: new Date().toISOString(), status: 'queued'
         };
-        newLeads.push(lead);
-        n++;
+        allNewLeads.push(lead);
+        if (normalizedPhone.length >= 5) {
+          crmDb.recordMemory({
+            phone: normalizedPhone, lead_id: lead.id, company, city,
+            sector: place.sector || GLOBAL_SECTORS[0], lang,
+            has_website: 0, first_seen: new Date().toISOString(),
+            last_contacted: null, contact_count: 0, status: 'new', notes: ''
+          });
+        }
         currentStats.found++;
-        if (lead.hasWebsite) currentStats.withSite++; else currentStats.noSite++;
+        currentStats.noSite++;
+        console.log(`[Memory] New lead recorded: ${company} (${city}) — phone: ${leadPhone}`);
       }
-      broadcast({ type:'search_done', message:`${p.city}: +${n} new`, pipeline:p.city, count:n, stats:currentStats });
     } catch (err) {
-      broadcast({ type:'search_error', message:`${p.city}: ${err.message}`, pipeline:p.city });
+      console.error(`[Search] ${city} error: ${err.message}`);
+      broadcast({ type: 'search_error', message: `${city}: ${err.message}`, pipeline: city });
     }
-    if (i < SEARCH_MATRIX.length - 1 && !botAborted) await sleep(searchDelay);
+    if (!botAborted && allNewLeads.length < LEAD_TARGET) {
+      await sleep(8000 + Math.floor(Math.random() * 7000));
+    }
   }
 
-  writeJ(LEADS_FILE, [...existingLeads, ...newLeads]);
-  broadcast({ type:'search_complete', message:`Search done — ${currentStats.found} leads. Auditing websites...`, stats:currentStats });
-  await sleep(800);
+  broadcast({ type: 'search_done', message: `${allNewLeads.length} no-website leads found (target: ${LEAD_TARGET}) across ${loopCount} city searches`, count: allNewLeads.length, stats: currentStats });
 
-  // ── PHASE 2: AUDIT + EMAIL DISCOVERY ─────────────────────
+  // Save leads
+  writeJ(LEADS_FILE, [...existingLeads, ...allNewLeads]);
+
+  // ── AUDIT + QUEUE ────────────────────────────────────────
   currentStats.phase = 'auditing';
-  broadcast({ type:'audit_phase_start', message:'Phase 2/2: Auditing sites and finding emails...', stats:currentStats });
+  broadcast({ type: 'audit_phase_start', message: 'Auditing sites and finding emails...', stats: currentStats });
 
   const queueItems = [];
-
-  for (let i = 0; i < newLeads.length; i++) {
+  for (let i = 0; i < allNewLeads.length; i++) {
     if (botAborted) break;
-    const lead = newLeads[i];
-    const pct  = Math.round(50 + (i / Math.max(newLeads.length, 1)) * 50);
-    broadcast({ type:'progress', progress:pct, processed:i+1, total:newLeads.length, stats:currentStats });
+    const lead = allNewLeads[i];
+    const pct = Math.round((i / Math.max(allNewLeads.length, 1)) * 100);
+    broadcast({ type: 'progress', progress: pct, processed: i + 1, total: allNewLeads.length, stats: currentStats });
 
     if (lead.hasWebsite) {
-      broadcast({ type:'auditing', message:`Auditing ${lead.company}...`, lead:lead.company });
       try {
         const audit = await analyzeWebsite(lead.website);
-        lead.audit = { score:audit.score, ssl:audit.ssl, speedMs:audit.speedMs, underConstruction:audit.underConstruction, noMobile:audit.noMobile, issues:audit.issues, estimatedLoss:audit.estimatedLoss||0 };
+        lead.audit = { score: audit.score, ssl: audit.ssl, speedMs: audit.speedMs, underConstruction: audit.underConstruction, noMobile: audit.noMobile, issues: audit.issues, estimatedLoss: audit.estimatedLoss || 0 };
         lead.score = audit.score;
         lead.estimatedLoss = audit.estimatedLoss || 0;
-        lead.auditFinished = true;
         lead.email = audit.email || '';
         currentStats.audited++;
-        const lossStr = audit.estimatedLoss ? ` · $${audit.estimatedLoss.toLocaleString('en-US')}/mo loss` : '';
-        broadcast({ type:'audit_done', message:`${lead.company}: ${audit.score}/100${audit.issues.length ? ' — ' + audit.issues.join(', ') : ' ✓'}${lossStr}`, lead:lead.company, score:audit.score, issues:audit.issues, estimatedLoss:audit.estimatedLoss||0, stats:currentStats });
+        broadcast({ type: 'audit_done', message: `${lead.company}: ${audit.score}/100`, lead: lead.company, score: audit.score, stats: currentStats });
       } catch { lead.score = 100; }
     }
 
-    // Add to queue if we have an email or a fallback can be constructed
-    if (lead.email || (lead.hasWebsite && lead.website)) {
-      queueItems.push({ ...lead });
+    if (!lead.hasWebsite) {
+      queueItems.push({ ...lead, status: 'queued' });
       currentStats.queued++;
     } else {
       currentStats.skipped++;
     }
 
-    // Persist updated lead
+    // Update leads file
     const all = readJ(LEADS_FILE);
     const idx = all.findIndex(l => l.id === lead.id);
     if (idx !== -1) { all[idx] = lead; writeJ(LEADS_FILE, all); }
@@ -1203,33 +1443,32 @@ async function runBot() {
 
   addToQueue(queueItems);
 
-  // Sync queued leads to CRM contacts table
+  // ── CRM SYNC ────────────────────────────────────────────
   try {
     for (const lead of queueItems) {
-      if (lead.email) {
-        crmDb.upsertContact({
-          id: lead.id, company: lead.company, contact_name: '',
-          email: lead.email, business_type: lead.sector || lead.businessType || '',
-          city: lead.city || '', website: lead.website || '',
-          sequence_stage: 0, sequence_stopped: 0, last_email_sent: null,
-          status: 'New', revenue_onetime: 0, revenue_recurring: 0,
-          notes: '', ab_variant: '', opened: 0, replied: 0,
-          reply_sentiment: '', lead_id: lead.id,
-          created_at: new Date().toISOString()
-        });
-      }
+      crmDb.upsertContact({
+        id: lead.id, company: lead.company, contact_name: '',
+        email: lead.email || '', business_type: lead.sector || '',
+        city: lead.city || '', website: lead.website || '',
+        sequence_stage: 0, sequence_stopped: 0, last_email_sent: null,
+        status: 'New', revenue_onetime: 0, revenue_recurring: 0,
+        notes: 'No website — target for web development services',
+        ab_variant: '', opened: 0, replied: 0,
+        reply_sentiment: '', lead_id: lead.id,
+        created_at: new Date().toISOString()
+      });
     }
   } catch (crmErr) { console.error('[CRM] Sync error:', crmErr.message); }
 
   currentStats.phase = 'queued';
-
-  const campaign = { id:campaignId, startedAt, completedAt:new Date().toISOString(), status:botAborted?'aborted':'queued', stats:{...currentStats} };
+  const campaign = { id: campaignId, startedAt, completedAt: new Date().toISOString(), status: botAborted ? 'aborted' : 'queued', stats: { ...currentStats } };
   const camps = readJ(CAMPS_FILE);
   camps.unshift(campaign);
   writeJ(CAMPS_FILE, camps);
   botRunning = false;
 
-  broadcast({ type:'bot_complete', message:`Done! ${currentStats.queued} leads queued. ${cronRunning ? 'Auto-send is active.' : 'Press "Start Auto-Send" to begin sending.'}`, stats:currentStats, campaign, queueLeft:queueLength() });
+  broadcast({ type: 'bot_complete', message: `Done! ${currentStats.queued} leads queued. ${cronRunning ? 'Auto-send is active.' : 'Press "Start Auto-Send" to begin sending.'}`, stats: currentStats, campaign, queueLeft: queueLength() });
+  console.log(`[Bot] Complete: ${currentStats.found} found, ${currentStats.queued} queued`);
 }
 
 // ── TARGETED BOT (single city + sectors + filters) ────────────
@@ -1281,11 +1520,17 @@ async function runTargetedBot(options = {}) {
   // ── PHASE 1: SEARCH ──────────────────────────────────────
   broadcast({ type:'search_start', message:`Searching ${city} for: ${sectorKeys.join(', ')}...`, pipeline:city, step:1, total:1, stats:currentStats });
   try {
-    const places = await searchSerperMulti(city, gl, hl, lang, ll, sectors);
+    const places = await searchGoogleMapsMulti(city, gl, hl, lang, ll, sectors);
     for (const place of places) {
       if (botAborted || newLeads.length >= targetCount) break;
       const company = (place.title || '').trim();
       if (!company) continue;
+      const leadPhone = place.phoneNumber || place.phone || '';
+      const normalizedPhone = leadPhone.replace(/\s+/g, '').replace(/[-()]/g, '');
+      if (normalizedPhone.length >= 5 && crmDb.isDuplicatePhone(normalizedPhone)) {
+        console.log(`[Memory] Targeted: Skip duplicate phone: ${leadPhone} — ${company}`);
+        continue;
+      }
       const key = `${company.toLowerCase()}__${city.toLowerCase()}`;
       if (seenKeys.has(key)) continue;
       seenKeys.add(key);
@@ -1295,12 +1540,20 @@ async function runTargetedBot(options = {}) {
       const lead = {
         id: uuid(), company, name:company,
         city, sector:place.sector || sectors[0], lang,
-        phone:place.phoneNumber || place.phone || '',
+        phone:leadPhone,
         address:place.address || '',
         website, rating:parseFloat(place.rating)||0, reviewsCount:parseInt(place.reviewsCount)||0,
         hasWebsite:!!website, email:'', emailSent:false, sentAt:null,
         audit:null, score:null, accountUsed:'', createdAt:new Date().toISOString()
       };
+      if (!lead.hasWebsite && normalizedPhone.length >= 5) {
+        crmDb.recordMemory({
+          phone: normalizedPhone, lead_id: lead.id, company, city,
+          sector: place.sector || sectors[0], lang,
+          has_website: 0, first_seen: new Date().toISOString(),
+          last_contacted: null, contact_count: 0, status: 'new', notes: ''
+        });
+      }
       newLeads.push(lead);
       currentStats.found++;
       if (lead.hasWebsite) currentStats.withSite++; else currentStats.noSite++;
@@ -1394,10 +1647,10 @@ async function runTargetedBot(options = {}) {
 
     // ── QUEUE DECISION ───────────────────────────────────
     if (lead.email || (lead.hasWebsite && lead.website && !lead.deadUrl)) {
-      queueItems.push({ ...lead });
+      queueItems.push({ ...lead, status: 'queued' });
       currentStats.queued++;
     } else if (!lead.hasWebsite || lead.deadUrl) {
-      queueItems.push({ ...lead });
+      queueItems.push({ ...lead, status: 'queued' });
       currentStats.queued++;
     } else {
       currentStats.skipped++;
@@ -1702,7 +1955,8 @@ app.post('/outreachbot/api/ai-audit', async (req, res) => {
 app.get('/outreachbot/api/bot/status', (req, res) => {
   const leads = readJ(LEADS_FILE);
   const pool  = getAccountPool();
-  res.json({ running:botRunning, aborted:botAborted, cronRunning, accountCount:pool.length, queueLeft:queueLength(), stats:currentStats, leadsCount:leads.length, sentCount:leads.filter(l=>l.emailSent).length, totalSentToday, aiActive: !!process.env.GEMINI_API_KEY, aiGeneratedCount: currentStats.aiGenerated || 0, aiAuditRunning });
+  const memStats = crmDb.getNewNoWebsiteCount();
+  res.json({ running:botRunning, aborted:botAborted, cronRunning, accountCount:pool.length, queueLeft:queueLength(), stats:currentStats, leadsCount:leads.length, sentCount:leads.filter(l=>l.emailSent).length, totalSentToday, aiActive: !!process.env.GEMINI_API_KEY, aiGeneratedCount: currentStats.aiGenerated || 0, aiAuditRunning, memoryStats: { newNoWebsite: memStats.n || 0 } });
 });
 
 app.get('/outreachbot/api/config', (req, res) => {
@@ -1743,6 +1997,24 @@ app.get('/outreachbot/api/leads', (req, res) => {
 });
 
 app.get('/outreachbot/api/campaigns', (req, res) => res.json(readJ(CAMPS_FILE)));
+
+app.get('/outreachbot/api/memory', (req, res) => {
+  const { filter } = req.query;
+  let memory = crmDb.getAllMemory();
+  if (filter === 'new') memory = memory.filter(m => m.status === 'new');
+  if (filter === 'contacted') memory = memory.filter(m => m.status === 'contacted');
+  if (filter === 'no_website') memory = memory.filter(m => m.has_website === 0);
+  res.json(memory);
+});
+
+app.get('/outreachbot/api/memory/stats', (req, res) => {
+  res.json(crmDb.getNewNoWebsiteCount());
+});
+
+app.delete('/outreachbot/api/memory', (req, res) => {
+  try { crmDb.db.prepare('DELETE FROM contact_memory WHERE status = ?').run('new'); } catch {}
+  res.json({ cleared: true });
+});
 
 app.delete('/outreachbot/api/leads', (req, res) => {
   if (botRunning) return res.status(409).json({ error:'Cannot clear while running' });

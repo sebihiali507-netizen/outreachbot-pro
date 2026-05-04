@@ -10,9 +10,11 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 
-# Runtime data (large files - regenerated at runtime)
-data/leads.json
-data/queue.json
+# Runtime data (large files - regenerated at runtime / persisted via Railway Volume)
+data/
+
+# Local Chrome download (Puppeteer dev)
+chrome/
 
 # Build outputs
 dist/
@@ -32,3 +34,4 @@ Thumbs.db
 # Replit internal
 .replit-artifact/
 .cache/
+.local/
