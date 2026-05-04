@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Runtime data (large files - regenerated at runtime)
+data/leads.json
+data/queue.json
+
+# Build outputs
+dist/
+build/
+*.min.js.map
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Replit internal
+.replit-artifact/
+.cache/

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SA OutreachBot — Settings</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #0A0C0F;
+      --surface: #111318;
+      --s2:      #161A23;
+      --s3:      #1a1f2e;
+      --border:  #1C2030;
+      --blue:    #4F7DF3;
+      --green:   #1DB954;
+      --orange:  #F5A623;
+      --red:     #E24B4A;
+      --purple:  #A78BFA;
+      --text:    #E2E8F0;
+      --muted:   #64748B;
+      --mono:    'JetBrains Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+    /* ── LOGIN OVERLAY ── */
+    #loginOverlay {
+      position: fixed; inset: 0; background: rgba(10,12,15,0.97);
+      display: flex; align-items: center; justify-content: center; z-index: 9999;
+    }
+    .login-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      padding: 40px 44px; width: 100%; max-width: 380px; text-align: center;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    }
+    .login-icon {
+      width: 56px; height: 56px; background: rgba(79,125,243,0.15); border: 1px solid rgba(79,125,243,0.3);
+      border-radius: 14px; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 26px; margin-bottom: 20px;
+    }
+    .login-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .login-box p  { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+    .pw-wrap { position: relative; margin-bottom: 12px; }
+    .pw-wrap input {
+      width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: 9px;
+      padding: 12px 44px 12px 14px; color: var(--text); font-size: 14px;
+      font-family: var(--mono); outline: none; transition: border-color .15s;
+    }
+    .pw-wrap input:focus { border-color: var(--blue); }
+    .pw-eye {
+      position: absolute; right: 13px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px;
+      line-height: 1; padding: 2px;
+    }
+    .pw-eye:hover { color: var(--text); }
+    .login-btn {
+      width: 100%; background: var(--blue); border: none; border-radius: 9px;
+      padding: 12px; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: background .15s; margin-bottom: 10px;
+    }
+    .login-btn:hover { background: #3d68e8; }
+    .login-err { color: var(--red); font-size: 12px; min-height: 18px; }
+
+    /* ── HEADER ── */
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 24px; height: 52px;
+      background: rgba(17,19,24,0.75);
+      backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(79,125,243,0.15);
+      box-shadow: 0 1px 30px rgba(0,0,0,0.4);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+    .logo-icon { width: 26px; height: 26px; background: var(--blue); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+    .logo-badge { background: rgba(167,139,250,.15); border: 1px solid rgba(167,139,250,.3); color: var(--purple); font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; letter-spacing: .4px; }
+    .header-spacer { flex: 1; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 13px; border-radius: 7px;
+      border: 1px solid var(--border); background: var(--s2);
+      color: var(--text); font-size: 12px; font-weight: 500; cursor: pointer;
+      transition: background .15s; text-decoration: none;
+    }
+    .btn:hover { background: #1e2333; }
+    .btn-blue { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .btn-blue:hover { background: #3d68e8; }
+    .btn-green { background: rgba(29,185,84,.12); border-color: rgba(29,185,84,.35); color: var(--green); }
+    .btn-green:hover { background: rgba(29,185,84,.2); }
+    .btn-red { background: transparent; border-color: var(--red); color: var(--red); }
+    .btn-red:hover { background: rgba(226,75,74,.08); }
+
+    /* ── MAIN ── */
+    main { max-width: 900px; margin: 0 auto; padding: 28px 20px 80px; }
+
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+    .page-sub   { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+    .section-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      background: var(--s2);
+    }
+    .section-head h3 { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .section-body { padding: 0; }
+
+    /* ── SMTP TABLE ── */
+    .smtp-table { width: 100%; border-collapse: collapse; }
+    .smtp-table th {
+      text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .5px;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      background: rgba(22,26,35,0.6);
+    }
+    .smtp-table td { padding: 8px 10px; border-bottom: 1px solid rgba(28,32,48,0.6); vertical-align: middle; }
+    .smtp-table tr:last-child td { border-bottom: none; }
+    .smtp-table tr:hover td { background: rgba(79,125,243,0.03); }
+
+    .tbl-input {
+      width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: 7px;
+      padding: 7px 10px; color: var(--text); font-size: 13px; font-family: inherit; outline: none;
+      transition: border-color .15s;
+    }
+    .tbl-input:focus { border-color: var(--blue); }
+    .tbl-input.mono-input { font-family: var(--mono); }
+
+    .pass-wrap { position: relative; display: flex; align-items: center; }
+    .pass-wrap .tbl-input { padding-right: 36px; }
+    .show-hide {
+      position: absolute; right: 8px; background: none; border: none;
+      color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 4px;
+      line-height: 1;
+    }
+    .show-hide:hover { color: var(--text); }
+
+    .idx-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 5px;
+      background: var(--s3); border: 1px solid var(--border);
+      font-size: 11px; font-weight: 600; color: var(--muted); flex-shrink: 0;
+    }
+
+    .del-btn {
+      background: none; border: 1px solid transparent; border-radius: 6px;
+      color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px 7px;
+      transition: color .15s, border-color .15s, background .15s; line-height: 1;
+    }
+    .del-btn:hover { color: var(--red); border-color: rgba(226,75,74,.3); background: rgba(226,75,74,.06); }
+
+    .add-row-btn {
+      display: flex; align-items: center; gap: 7px;
+      width: 100%; padding: 12px 16px; background: none; border: none;
+      color: var(--blue); font-size: 13px; font-weight: 500; cursor: pointer;
+      border-top: 1px solid var(--border); transition: background .15s;
+    }
+    .add-row-btn:hover { background: rgba(79,125,243,0.05); }
+
+    /* ── GENERAL VARS TABLE ── */
+    .vars-table { width: 100%; border-collapse: collapse; }
+    .vars-table th {
+      text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .5px;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      background: rgba(22,26,35,0.6);
+    }
+    .vars-table td { padding: 8px 12px; border-bottom: 1px solid rgba(28,32,48,0.6); vertical-align: middle; }
+    .vars-table tr:last-child td { border-bottom: none; }
+    .vars-table tr:hover td { background: rgba(79,125,243,0.03); }
+    .key-cell { font-family: var(--mono); font-size: 12px; color: var(--orange); white-space: nowrap; min-width: 180px; padding-left: 16px; }
+    .key-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    /* ── SAVE BAR ── */
+    .save-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .save-status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+    .save-status.success { color: var(--green); }
+    .save-status.error   { color: var(--red); }
+    .save-actions { display: flex; gap: 10px; }
+
+    .save-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 20px; border-radius: 8px;
+      background: var(--blue); border: 1px solid var(--blue); color: #fff;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s;
+    }
+    .save-btn:hover { background: #3d68e8; }
+    .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--s3); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 20px; font-size: 13px; font-weight: 500; white-space: nowrap;
+      opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.success { border-color: rgba(29,185,84,.4); color: var(--green); background: rgba(29,185,84,.08); }
+    #toast.error   { border-color: rgba(226,75,74,.4); color: var(--red);   background: rgba(226,75,74,.08); }
+
+    /* ── MISC ── */
+    .info-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(79,125,243,.1); border: 1px solid rgba(79,125,243,.2);
+      border-radius: 6px; padding: 3px 9px; font-size: 11px; color: #7da4f8;
+    }
+    .locked-note {
+      font-size: 11px; color: var(--muted);
+      background: rgba(245,166,35,.06); border: 1px solid rgba(245,166,35,.15);
+      border-radius: 6px; padding: 2px 8px;
+    }
+
+    .logout-btn {
+      background: none; border: 1px solid var(--border); border-radius: 7px;
+      color: var(--muted); font-size: 12px; padding: 5px 11px; cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+    .logout-btn:hover { color: var(--red); border-color: rgba(226,75,74,.4); }
+  </style>
+</head>
+<body>
+
+<!-- ── LOGIN OVERLAY ── -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <div class="login-icon">🔐</div>
+    <h2>Admin Settings</h2>
+    <p>Enter your admin password to access the settings panel</p>
+    <div class="pw-wrap">
+      <input type="password" id="loginPw" placeholder="Admin password" onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="pw-eye" onclick="toggleLoginEye()" id="loginEyeBtn">👁</button>
+    </div>
+    <button class="login-btn" onclick="doLogin()" id="loginBtn">Unlock Settings</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ── MAIN CONTENT (shown after login) ── -->
+<div id="mainContent" style="display:none">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    SA <span style="color:var(--muted);font-weight:400">OutreachBot</span>
+  </div>
+  <div class="logo-badge">⚙ Settings</div>
+  <div class="header-spacer"></div>
+  <span id="headerStatus" style="font-size:12px;color:var(--muted)"></span>
+  <a href="/outreachbot/" class="btn">← Back to Dashboard</a>
+  <button class="logout-btn" onclick="doLogout()">Logout</button>
+</header>
+
+<main>
+  <div class="page-title">⚙ Environment Settings</div>
+  <div class="page-sub">Changes are applied instantly (hot reload) — no server restart needed. Values are also written to .env for persistence.</div>
+
+  <!-- SMTP ACCOUNTS -->
+  <div class="section">
+    <div class="section-head">
+      <h3>📧 SMTP Accounts <span id="smtpCountBadge" class="info-pill" style="margin-left:4px">0 accounts</span></h3>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="locked-note">⚠ Replit Secrets take priority over .env</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="smtp-table">
+        <thead>
+          <tr>
+            <th style="width:40px">#</th>
+            <th>Email / Username (SMTP_USER_N)</th>
+            <th>App Password (SMTP_PASS_N)</th>
+            <th style="width:50px"></th>
+          </tr>
+        </thead>
+        <tbody id="smtpBody"></tbody>
+      </table>
+      <button class="add-row-btn" onclick="addSmtpRow()">
+        <span style="font-size:18px;font-weight:300">+</span> Add SMTP Account
+      </button>
+    </div>
+  </div>
+
+  <!-- GENERAL SETTINGS -->
+  <div class="section">
+    <div class="section-head">
+      <h3>🛠 General Settings</h3>
+    </div>
+    <div class="section-body">
+      <table class="vars-table">
+        <thead>
+          <tr>
+            <th style="min-width:220px">Variable</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody id="generalBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SENSITIVE / API KEYS -->
+  <div class="section">
+    <div class="section-head">
+      <h3>🔑 API Keys & Security</h3>
+    </div>
+    <div class="section-body">
+      <table class="vars-table">
+        <thead>
+          <tr>
+            <th style="min-width:220px">Variable</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody id="keysBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── SAVE BAR ── -->
+<div class="save-bar">
+  <div class="save-status" id="saveStatus">Ready — make changes above and click Save</div>
+  <div class="save-actions">
+    <button class="btn" onclick="reloadSettings()">↺ Reload</button>
+    <button class="save-btn" id="saveBtn" onclick="saveSettings()">💾 Save &amp; Apply</button>
+  </div>
+</div>
+
+</div><!-- /mainContent -->
+
+<div id="toast"></div>
+
+<script>
+var BASE = '/outreachbot';
+var ADMIN_TOKEN = '';
+
+// ── AUTH ──────────────────────────────────────────────────────
+function toggleLoginEye() {
+  var inp = document.getElementById('loginPw');
+  var btn = document.getElementById('loginEyeBtn');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+async function doLogin() {
+  var pw = document.getElementById('loginPw').value.trim();
+  var err = document.getElementById('loginErr');
+  var btn = document.getElementById('loginBtn');
+  if (!pw) { err.textContent = 'Please enter your admin password.'; return; }
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  try {
+    var res = await fetch(BASE + '/api/settings/verify', { headers: { 'x-admin-token': pw } });
+    var data = await res.json();
+    if (data.ok) {
+      ADMIN_TOKEN = pw;
+      sessionStorage.setItem('ob_admin', pw);
+      document.getElementById('loginOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+      loadSettings();
+    } else {
+      err.textContent = 'Incorrect password. Try again.';
+    }
+  } catch(e) {
+    err.textContent = 'Connection error. Please try again.';
+  }
+  btn.disabled = false; btn.textContent = 'Unlock Settings';
+}
+
+function doLogout() {
+  ADMIN_TOKEN = '';
+  sessionStorage.removeItem('ob_admin');
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('mainContent').style.display = 'none';
+  document.getElementById('loginPw').value = '';
+}
+
+// ── SMTP ROWS ────────────────────────────────────────────────
+var smtpRows = []; // [{user:'', pass:''}]
+
+function renderSmtpTable() {
+  var tbody = document.getElementById('smtpBody');
+  var badge = document.getElementById('smtpCountBadge');
+  badge.textContent = smtpRows.length + ' account' + (smtpRows.length !== 1 ? 's' : '');
+  if (!smtpRows.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:20px 16px;color:var(--muted);font-size:12px;text-align:center">No accounts configured yet. Click "+ Add SMTP Account" below.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = smtpRows.map(function(row, i) {
+    var uid = 'smtp_' + i;
+    return '<tr id="smtprow_' + i + '">'
+      + '<td style="text-align:center"><span class="idx-badge">' + (i + 1) + '</span></td>'
+      + '<td><input class="tbl-input mono-input" id="' + uid + '_user" placeholder="you@gmail.com" value="' + esc(row.user) + '" oninput="smtpRows[' + i + '].user=this.value;markDirty()"></td>'
+      + '<td><div class="pass-wrap"><input class="tbl-input mono-input" type="password" id="' + uid + '_pass" placeholder="App password (xxxx xxxx xxxx xxxx)" value="' + esc(row.pass) + '" oninput="smtpRows[' + i + '].pass=this.value;markDirty()"><button class="show-hide" onclick="togglePassField(this, \'' + uid + '_pass\')">👁</button></div></td>'
+      + '<td style="text-align:center"><button class="del-btn" onclick="removeSmtpRow(' + i + ')" title="Remove">×</button></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function addSmtpRow() { smtpRows.push({ user: '', pass: '' }); renderSmtpTable(); markDirty(); }
+
+function removeSmtpRow(i) {
+  smtpRows.splice(i, 1);
+  renderSmtpTable();
+  markDirty();
+}
+
+function togglePassField(btn, inputId) {
+  var inp = document.getElementById(inputId);
+  if (!inp) return;
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+// ── GENERAL + KEYS TABLES ───────────────────────────────────
+var GENERAL_FIELDS = [
+  { key: 'SENDER_NAME',           label: 'Sender Display Name',   desc: 'Name shown in outreach emails',             placeholder: 'SA' },
+  { key: 'DAILY_EMAIL_CAP',       label: 'Daily Email Cap (total)',desc: 'Max emails sent per day across all accounts', placeholder: '200' },
+  { key: 'PER_ACCOUNT_DAILY_CAP', label: 'Per-Account Daily Cap', desc: 'Max emails per SMTP account per day',        placeholder: '100' },
+  { key: 'CRON_SCHEDULE',         label: 'Cron Schedule',         desc: 'When to auto-send (cron expression)',        placeholder: '*/2 * * * *' },
+  { key: 'EMAIL_DELAY_MIN_MS',    label: 'Min Delay (ms)',        desc: 'Minimum pause between emails',               placeholder: '12000' },
+  { key: 'EMAIL_DELAY_MAX_MS',    label: 'Max Delay (ms)',        desc: 'Maximum pause between emails',               placeholder: '35000' },
+];
+
+var KEYS_FIELDS = [
+  { key: 'SERPER_API_KEY',   label: 'Serper API Key',  desc: 'API key for lead search (Google Maps)',  placeholder: 'your-serper-key',     sensitive: true },
+  { key: 'GEMINI_API_KEY',   label: 'Gemini API Key',  desc: 'Google AI key for AI-generated emails', placeholder: 'AIza…',               sensitive: true },
+  { key: 'ADMIN_PASSWORD',   label: 'Admin Password',  desc: 'Password to access this settings page',  placeholder: 'sa2024',              sensitive: true },
+];
+
+var generalValues = {};
+var keysValues    = {};
+
+function renderGeneralTable(settings) {
+  var tbody = document.getElementById('generalBody');
+  tbody.innerHTML = GENERAL_FIELDS.map(function(f) {
+    var val = settings[f.key] ? settings[f.key].value : '';
+    return '<tr>'
+      + '<td class="key-cell"><div>' + f.key + '</div><div class="key-desc">' + f.label + ' — ' + f.desc + '</div></td>'
+      + '<td><input class="tbl-input" placeholder="' + f.placeholder + '" value="' + esc(val) + '" oninput="generalValues[\'' + f.key + '\']=this.value;markDirty()"></td>'
+      + '</tr>';
+  }).join('');
+  GENERAL_FIELDS.forEach(function(f) {
+    generalValues[f.key] = settings[f.key] ? settings[f.key].value : '';
+  });
+}
+
+function renderKeysTable(settings) {
+  var tbody = document.getElementById('keysBody');
+  tbody.innerHTML = KEYS_FIELDS.map(function(f) {
+    var val = settings[f.key] ? settings[f.key].value : '';
+    var uid = 'key_' + f.key;
+    return '<tr>'
+      + '<td class="key-cell"><div>' + f.key + '</div><div class="key-desc">' + f.label + ' — ' + f.desc + '</div></td>'
+      + '<td><div class="pass-wrap"><input class="tbl-input mono-input" type="' + (f.sensitive ? 'password' : 'text') + '" id="' + uid + '" placeholder="' + f.placeholder + '" value="' + esc(val) + '" oninput="keysValues[\'' + f.key + '\']=this.value;markDirty()">'
+      + (f.sensitive ? '<button class="show-hide" onclick="togglePassField(this, \'' + uid + '\')">👁</button>' : '')
+      + '</div></td>'
+      + '</tr>';
+  }).join('');
+  KEYS_FIELDS.forEach(function(f) {
+    keysValues[f.key] = settings[f.key] ? settings[f.key].value : '';
+  });
+}
+
+// ── LOAD SETTINGS ───────────────────────────────────────────
+async function loadSettings() {
+  setStatus('Loading settings…', '');
+  try {
+    var res = await fetch(BASE + '/api/settings', { headers: { 'x-admin-token': ADMIN_TOKEN } });
+    if (res.status === 401) { doLogout(); return; }
+    var settings = await res.json();
+
+    // Build SMTP rows from SMTP_USER/PASS and SMTP_USER_N/PASS_N
+    smtpRows = [];
+    // Single account
+    if (settings['SMTP_USER'] && settings['SMTP_USER'].value) {
+      smtpRows.push({ user: settings['SMTP_USER'].value, pass: settings['SMTP_PASS'] ? settings['SMTP_PASS'].value : '' });
+    }
+    // Numbered accounts
+    for (var i = 1; i <= 10; i++) {
+      var uk = 'SMTP_USER_' + i, pk = 'SMTP_PASS_' + i;
+      if (settings[uk] && settings[uk].value) {
+        smtpRows.push({ user: settings[uk].value, pass: settings[pk] ? settings[pk].value : '' });
+      }
+    }
+    if (!smtpRows.length) smtpRows = [{ user: '', pass: '' }];
+    renderSmtpTable();
+    renderGeneralTable(settings);
+    renderKeysTable(settings);
+    setStatus('Settings loaded ✓', 'success');
+    setTimeout(function() { setStatus('Ready — make changes above and click Save', ''); }, 1800);
+    isDirty = false;
+  } catch(e) {
+    setStatus('Failed to load settings', 'error');
+  }
+}
+
+async function reloadSettings() { await loadSettings(); }
+
+// ── SAVE ────────────────────────────────────────────────────
+var isDirty = false;
+function markDirty() {
+  isDirty = true;
+  setStatus('Unsaved changes — click Save & Apply to update', '');
+}
+
+async function saveSettings() {
+  var btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+  setStatus('Saving and applying…', '');
+
+  var vars = {};
+
+  // SMTP accounts → map to numbered keys
+  // Remove all existing keys first (null = delete)
+  vars['SMTP_USER'] = null; vars['SMTP_PASS'] = null;
+  for (var i = 1; i <= 10; i++) { vars['SMTP_USER_' + i] = null; vars['SMTP_PASS_' + i] = null; }
+
+  if (smtpRows.length === 1) {
+    // Single account mode
+    if (smtpRows[0].user) { vars['SMTP_USER'] = smtpRows[0].user; }
+    if (smtpRows[0].pass) { vars['SMTP_PASS'] = smtpRows[0].pass; }
+  } else {
+    // Numbered mode
+    smtpRows.forEach(function(row, idx) {
+      if (row.user) {
+        vars['SMTP_USER_' + (idx + 1)] = row.user;
+        if (row.pass) vars['SMTP_PASS_' + (idx + 1)] = row.pass;
+      }
+    });
+  }
+
+  // General fields
+  Object.keys(generalValues).forEach(function(k) {
+    vars[k] = generalValues[k] || null;
+  });
+
+  // Keys fields
+  Object.keys(keysValues).forEach(function(k) {
+    vars[k] = keysValues[k] || null;
+  });
+
+  try {
+    var res = await fetch(BASE + '/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': ADMIN_TOKEN },
+      body: JSON.stringify({ vars: vars })
+    });
+    if (res.status === 401) { doLogout(); return; }
+    var data = await res.json();
+    if (data.saved) {
+      setStatus('✓ Saved and applied successfully' + (data.smtpRestarted ? ' — SMTP accounts reloaded' : ''), 'success');
+      showToast('✓ Settings saved and applied!', 'success');
+      isDirty = false;
+      setTimeout(function() { setStatus('Ready', ''); }, 3000);
+    } else {
+      setStatus('Save failed: ' + (data.error || 'Unknown error'), 'error');
+      showToast('✕ Save failed', 'error');
+    }
+  } catch(e) {
+    setStatus('Network error — could not save', 'error');
+    showToast('✕ Network error', 'error');
+  }
+  btn.disabled = false; btn.textContent = '💾 Save & Apply';
+}
+
+// ── UI HELPERS ───────────────────────────────────────────────
+function setStatus(msg, cls) {
+  var el = document.getElementById('saveStatus');
+  el.textContent = msg;
+  el.className = 'save-status' + (cls ? ' ' + cls : '');
+}
+
+var toastTimer;
+function showToast(msg, cls) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + (cls || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { t.className = ''; }, 3000);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── INIT ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var saved = sessionStorage.getItem('ob_admin');
+  if (saved) {
+    ADMIN_TOKEN = saved;
+    // Verify silently
+    fetch(BASE + '/api/settings/verify', { headers: { 'x-admin-token': saved } })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          document.getElementById('loginOverlay').style.display = 'none';
+          document.getElementById('mainContent').style.display = 'block';
+          loadSettings();
+        } else {
+          sessionStorage.removeItem('ob_admin');
+        }
+      }).catch(function(){});
+  }
+  document.getElementById('loginPw').focus();
+
+  window.addEventListener('beforeunload', function(e) {
+    if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+});
+</script>
+</body>
+</html>

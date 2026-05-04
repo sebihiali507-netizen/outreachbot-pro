@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SA — OutreachBot Pro</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #0A0C0F;
+      --surface: #111318;
+      --s2:      #161A23;
+      --s3:      #1a1f2e;
+      --border:  #1C2030;
+      --blue:    #4F7DF3;
+      --green:   #1DB954;
+      --orange:  #F5A623;
+      --red:     #E24B4A;
+      --purple:  #A78BFA;
+      --text:    #E2E8F0;
+      --muted:   #64748B;
+      --mono:    'JetBrains Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; min-height: 100vh; }
+    a { color: inherit; text-decoration: none; }
+
+    /* ── HEADER ── */
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 24px; height: 52px;
+      background: rgba(17,19,24,0.75);
+      backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(79,125,243,0.15);
+      box-shadow: 0 1px 30px rgba(0,0,0,0.4);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+    .logo-icon { width: 26px; height: 26px; background: var(--blue); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+    .header-spacer { flex: 1; }
+
+    .hstat {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 7px; padding: 5px 10px; font-size: 12px; font-weight: 500;
+    }
+    .hstat .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .hstat .dot.live { background: var(--green); animation: pulse 1.4s infinite; }
+    .hstat .dot.orange { background: var(--orange); animation: pulse-o 1.4s infinite; }
+    .hstat-val { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+
+    @keyframes pulse   { 0%,100%{box-shadow:0 0 0 0 rgba(29,185,84,.7)} 70%{box-shadow:0 0 0 6px rgba(29,185,84,0)} }
+    @keyframes pulse-o { 0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.7)} 70%{box-shadow:0 0 0 6px rgba(245,166,35,0)} }
+
+    .cron-toggle {
+      display: flex; align-items: center; gap: 7px;
+      border-radius: 8px; padding: 5px 12px;
+      border: 1px solid var(--border); background: var(--s2);
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .cron-toggle:hover { background: #1e2333; border-color: #2e3850; }
+    .cron-toggle.active { background: rgba(29,185,84,.1); border-color: rgba(29,185,84,.3); color: var(--green); }
+    .toggle-icon { font-size: 13px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 13px; border-radius: 7px;
+      border: 1px solid var(--border); background: var(--s2);
+      color: var(--text); font-size: 12px; font-weight: 500; cursor: pointer;
+      transition: background .15s;
+    }
+    .btn:hover { background: #1e2333; }
+    .btn-blue { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .btn-blue:hover { background: #3d68e8; }
+    .btn-red { background: transparent; border-color: var(--red); color: var(--red); }
+    .btn-red:hover { background: rgba(226,75,74,.08); }
+
+    /* ── MAIN ── */
+    main { max-width: 1140px; margin: 0 auto; padding: 24px 20px 60px; }
+
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+
+    /* ── IDLE ── */
+    #stateIdle { display: flex; flex-direction: column; align-items: center; padding: 44px 28px 40px; text-align: center; }
+    .hero-icon { font-size: 52px; margin-bottom: 16px; }
+    #stateIdle h1 { font-size: 26px; font-weight: 700; letter-spacing: -.4px; margin-bottom: 6px; }
+    #stateIdle .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 22px; }
+
+    .chip-row { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; justify-content: center; }
+    .chip { background: var(--s2); border: 1px solid var(--border); border-radius: 999px; padding: 4px 13px; font-size: 12px; font-weight: 500; }
+
+    .city-list { color: var(--muted); font-size: 12px; line-height: 2.2; margin-bottom: 28px; max-width: 480px; }
+
+    /* Config info strip */
+    .config-strip {
+      display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 28px;
+    }
+    .cfg-item {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--s2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px;
+      font-size: 12px; color: var(--muted);
+    }
+    .cfg-item strong { color: var(--text); font-weight: 600; }
+    .cfg-item .dot2 { width: 6px; height: 6px; border-radius: 50%; }
+    .cfg-item .dot2.green { background: var(--green); }
+    .cfg-item .dot2.red   { background: var(--red); }
+    .cfg-item .dot2.orange{ background: var(--orange); }
+
+    #startBtn {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--blue); border: none; border-radius: 10px;
+      color: #fff; font-size: 16px; font-weight: 700;
+      padding: 16px 48px; cursor: pointer; letter-spacing: .3px;
+      transition: background .15s, box-shadow .15s, transform .1s; margin-bottom: 12px;
+    }
+    #startBtn:hover { background: #3d68e8; box-shadow: 0 0 24px rgba(79,125,243,.4); transform: translateY(-1px); }
+    #startBtn:active { transform: translateY(0); }
+    .hint { color: var(--muted); font-size: 11px; }
+
+    /* ── RUNNING ── */
+    #stateRunning { display: none; padding: 22px 26px 26px; }
+    .running-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .live-badge {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(29,185,84,.12); border: 1px solid rgba(29,185,84,.3);
+      color: var(--green); border-radius: 6px; padding: 4px 9px;
+      font-size: 11px; font-weight: 700; letter-spacing: .5px;
+    }
+    .live-badge::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 1.4s infinite; flex-shrink:0; }
+
+    .phase-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      border-radius: 6px; padding: 4px 9px; font-size: 11px; font-weight: 600;
+    }
+    .phase-search  { background: rgba(79,125,243,.12); border:1px solid rgba(79,125,243,.3); color:var(--blue); }
+    .phase-audit   { background: rgba(167,139,250,.12); border:1px solid rgba(167,139,250,.3); color:var(--purple); }
+    .phase-queued  { background: rgba(29,185,84,.12);  border:1px solid rgba(29,185,84,.3);  color:var(--green); }
+
+    .running-timer { font-family: var(--mono); color: var(--muted); font-size: 12px; margin-left: auto; }
+
+    .progress-wrap { background: var(--s2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+    .progress-track { background: var(--s3); border-radius: 999px; height: 5px; overflow: hidden; margin-bottom: 9px; }
+    #progressFill { height: 100%; background: linear-gradient(90deg, var(--blue), #7aa3f8); border-radius: 999px; width: 0%; transition: width .5s ease; }
+    .progress-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+    #progressPct { font-family: var(--mono); color: var(--blue); font-weight: 600; }
+
+    /* Stats grid */
+    .stat-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 18px; }
+    @media (max-width:640px) { .stat-row { grid-template-columns: repeat(3,1fr); } }
+    .stat-card { background: var(--s2); border: 1px solid var(--border); border-radius: 9px; padding: 13px; text-align: center; }
+    .stat-card span { display: block; font-family: var(--mono); font-size: 24px; font-weight: 700; letter-spacing: -1px; margin-bottom: 2px; }
+    .stat-card label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+    .stat-card.blue   span { color: var(--blue); }
+    .stat-card.green  span { color: var(--green); }
+    .stat-card.orange span { color: var(--orange); }
+    .stat-card.purple span { color: var(--purple); }
+
+    /* Live feed */
+    .feed-header { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 8px; }
+    .pulse-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: pulse 1.4s infinite; }
+    #liveFeed {
+      background: #080a0e; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+      max-height: 240px; overflow-y: auto; font-family: var(--mono); font-size: 11.5px; line-height: 1.9;
+      margin-bottom: 18px; scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    #liveFeed:empty::after { content: 'Waiting for events...'; color: var(--muted); }
+    .feed-line { display: flex; gap: 9px; }
+    .feed-ts { color: var(--muted); flex-shrink: 0; }
+    .feed-sent   .feed-msg { color: var(--green); }
+    .feed-skip   .feed-msg { color: var(--orange); }
+    .feed-error  .feed-msg { color: var(--red); }
+    .feed-audit  .feed-msg { color: var(--purple); }
+    .feed-scrape .feed-msg { color: #7aa3f8; }
+    .feed-search .feed-msg, .feed-info .feed-msg { color: var(--text); }
+    .feed-warn   .feed-msg { color: var(--orange); }
+    .feed-cron   .feed-msg { color: var(--green); }
+
+    /* ── COMPLETE ── */
+    #stateComplete { display: none; padding: 32px 26px 28px; }
+    .complete-header { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+    .complete-header h2 { font-size: 20px; font-weight: 700; }
+    .complete-sub { color: var(--muted); font-size: 12px; margin-bottom: 22px; }
+    .complete-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 22px; }
+
+    /* Queue banner */
+    .queue-banner {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+      background: rgba(79,125,243,.08); border: 1px solid rgba(79,125,243,.2);
+      border-radius: 9px; padding: 14px 18px; margin-bottom: 20px;
+    }
+    .queue-banner-left { display: flex; align-items: center; gap: 10px; }
+    .queue-count { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--blue); }
+    .queue-label { font-size: 12px; color: var(--muted); }
+    .queue-label strong { color: var(--text); font-size: 14px; display: block; }
+    .cron-status-badge {
+      display: flex; align-items: center; gap: 6px;
+      border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+    }
+    .cron-on  { background: rgba(29,185,84,.12); border:1px solid rgba(29,185,84,.3); color:var(--green); }
+    .cron-off { background: var(--s2); border:1px solid var(--border); color:var(--muted); }
+
+    /* ── SECTION TITLE ── */
+    .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+    /* ── TABLES ── */
+    table { width: 100%; border-collapse: collapse; }
+    thead th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    tbody tr:hover { background: rgba(255,255,255,.02); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td { padding: 10px 12px; font-size: 12px; }
+
+    /* Score badge */
+    .score-badge { display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; padding: 3px 8px; font-family: var(--mono); font-size: 11px; font-weight: 700; min-width: 36px; }
+    .score-crit   { background: rgba(226,75,74,.12);   color: var(--red);    border:1px solid rgba(226,75,74,.2); }
+    .score-warn   { background: rgba(245,166,35,.1);   color: var(--orange); border:1px solid rgba(245,166,35,.2); }
+    .score-ok     { background: rgba(29,185,84,.1);    color: var(--green);  border:1px solid rgba(29,185,84,.2); }
+    .score-na     { background: var(--s2);             color: var(--muted);  border:1px solid var(--border); }
+
+    /* Issue pills */
+    .issue-pills { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+    .pill { border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 500; white-space: nowrap; }
+    .pill-ssl  { background:rgba(226,75,74,.1);   color:var(--red);    border:1px solid rgba(226,75,74,.15); }
+    .pill-slow { background:rgba(245,166,35,.08); color:var(--orange); border:1px solid rgba(245,166,35,.15); }
+    .pill-uc   { background:rgba(167,139,250,.1); color:var(--purple); border:1px solid rgba(167,139,250,.15); }
+    .pill-mob  { background:rgba(100,116,139,.1); color:var(--muted);  border:1px solid rgba(100,116,139,.15); }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 2px; background: var(--s2); border: 1px solid var(--border); border-radius: 8px 8px 0 0; padding: 3px; border-bottom: none; }
+    .tab { flex:1; padding:6px 8px; border-radius:5px; border:none; background:transparent; color:var(--muted); font-size:11px; font-weight:500; cursor:pointer; transition:background .15s,color .15s; text-align:center; }
+    .tab.active { background:var(--surface); color:var(--text); }
+    .tab:hover:not(.active) { color:var(--text); }
+    .table-wrap { background:var(--surface); border:1px solid var(--border); border-top:none; border-radius:0 0 12px 12px; overflow:hidden; }
+
+    /* Badges */
+    .badge { display:inline-flex; align-items:center; gap:3px; border-radius:4px; padding:2px 7px; font-size:10px; font-weight:600; }
+    .badge-green  { background:rgba(29,185,84,.1);    color:var(--green);  border:1px solid rgba(29,185,84,.2); }
+    .badge-orange { background:rgba(245,166,35,.08);  color:var(--orange); border:1px solid rgba(245,166,35,.2); }
+    .badge-red    { background:rgba(239,68,68,.08);   color:#ef4444;       border:1px solid rgba(239,68,68,.2); }
+    .badge-gray   { background:rgba(100,116,139,.1);  color:var(--muted);  border:1px solid rgba(100,116,139,.15); }
+    .badge-blue   { background:rgba(79,125,243,.1);   color:var(--blue);   border:1px solid rgba(79,125,243,.2); }
+
+    .stars { color:var(--orange); font-size:11px; }
+    .empty-state { text-align:center; padding:40px 20px; color:var(--muted); font-size:12px; }
+    .mono { font-family:var(--mono); font-size:11px; }
+
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+    /* Account Pool Panel */
+    .acct-panel { background:var(--s2); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-top:18px; text-align:left; }
+    .acct-panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .acct-panel-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); }
+    .acct-list { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+    .acct-row { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:7px; background:var(--surface); border:1px solid var(--border); font-size:12px; }
+    .acct-row.acct-selected { border-color:rgba(79,125,243,.4); background:rgba(79,125,243,.06); }
+    .acct-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .acct-dot.ok      { background:var(--green); }
+    .acct-dot.error   { background:var(--red); }
+    .acct-dot.unknown { background:var(--muted); }
+    .acct-user { flex:1; font-family:var(--mono); color:var(--text); }
+    .acct-status-lbl { font-size:10px; font-weight:600; }
+    .acct-status-lbl.ok    { color:var(--green); }
+    .acct-status-lbl.error { color:var(--red); }
+    .acct-badge-err { background:rgba(226,75,74,.12); color:var(--red); border:1px solid rgba(226,75,74,.2); border-radius:4px; padding:1px 6px; font-size:10px; font-weight:600; }
+    .acct-panel-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .sender-select { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 10px; font-size:12px; font-family:inherit; cursor:pointer; }
+    .btn-test { background:rgba(79,125,243,.1); border:1px solid rgba(79,125,243,.25); color:var(--blue); border-radius:6px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; transition:background .15s; }
+    .btn-test:hover { background:rgba(79,125,243,.2); }
+    .btn-test:disabled { opacity:.4; cursor:default; }
+
+    /* Header account error badge */
+    .account-err-badge { background:rgba(226,75,74,.12); color:var(--red); border:1px solid rgba(226,75,74,.3); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:700; animation:pulse 1.4s infinite; }
+
+    /* AI badge */
+    .ai-badge { background:rgba(167,139,250,.12); border:1px solid rgba(167,139,250,.3); color:var(--purple); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:700; display:flex; align-items:center; gap:4px; }
+    .ai-badge .ai-dot { width:5px; height:5px; border-radius:50%; background:var(--purple); animation:pulse 1.4s infinite; }
+    .btn-ai { background:rgba(167,139,250,.12); border:1px solid rgba(167,139,250,.3); color:var(--purple); }
+    .btn-ai:hover { background:rgba(167,139,250,.2); }
+    .btn-ai:disabled { opacity:.4; cursor:default; }
+    .feed-ai .feed-msg { color: var(--purple); font-style: italic; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    SA <span style="color:var(--muted);font-weight:400">OutreachBot</span>
+  </div>
+
+  <div class="hstat" id="hstatStatus">
+    <span class="dot" id="statusDot"></span>
+    <span id="headerStatus">IDLE</span>
+  </div>
+
+  <div class="hstat">
+    <span style="color:var(--muted)">Queue</span>
+    <span class="hstat-val" id="hQueue">0</span>
+  </div>
+
+  <div class="hstat">
+    <span style="color:var(--muted)">Sent</span>
+    <span class="hstat-val" id="hSent">0</span>
+  </div>
+
+  <div class="hstat" id="hTimerWrap" style="display:none">
+    <span class="hstat-val mono" id="hTimer">00:00</span>
+  </div>
+
+  <div class="header-spacer"></div>
+
+  <div class="ai-badge" id="aiBadge" style="display:none">
+    <span class="ai-dot"></span>
+    <span>🤖 AI: ON</span>
+    <span id="aiGenCount" style="font-family:var(--mono);font-size:12px;margin-left:2px">0</span>
+  </div>
+
+  <div class="account-err-badge" id="accountErrBadge" style="display:none">⚠ Account Error</div>
+
+  <button class="cron-toggle" id="cronToggle" onclick="toggleCron()">
+    <span class="toggle-icon">⚡</span>
+    <span id="cronToggleLabel">Auto-Send: OFF</span>
+  </button>
+
+  <button class="btn" onclick="window.open('/outreachbot/api/export')">📥 Export</button>
+  <a href="/outreachbot/settings" class="btn" title="Admin Settings" style="padding:6px 11px;font-size:15px">⚙</a>
+</header>
+
+<main>
+
+  <!-- BOT PANEL -->
+  <div class="panel">
+
+    <!-- IDLE -->
+    <div id="stateIdle">
+      <div class="hero-icon">⚡</div>
+      <h1>SA OutreachBot</h1>
+      <p class="subtitle">Automated lead generation, site audit &amp; email outreach</p>
+
+      <div class="chip-row">
+        <span class="chip">11 Cities</span>
+        <span class="chip">4 Languages</span>
+        <span class="chip">Audit Engine</span>
+        <span class="chip">Account Rotation</span>
+        <span class="chip" id="aiChip" style="background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.3);color:var(--purple)">🤖 AI Mode</span>
+      </div>
+
+      <div class="city-list">
+        🇺🇸 New York · Los Angeles &nbsp;·&nbsp; 🇬🇧 London &nbsp;·&nbsp; 🇫🇷 Paris<br>
+        🇦🇪 Dubai · Abu Dhabi &nbsp;·&nbsp; 🇸🇬 Singapore &nbsp;·&nbsp; 🇭🇰 Hong Kong<br>
+        🇧🇷 São Paulo &nbsp;·&nbsp; 🇦🇺 Sydney · Melbourne
+      </div>
+
+      <div class="config-strip" id="configStrip">
+        <div class="cfg-item"><span class="dot2 green"></span> Accounts: <strong id="cfgAccounts">—</strong></div>
+        <div class="cfg-item">📋 Queue: <strong id="cfgQueue">0</strong> pending</div>
+        <div class="cfg-item">⏱ Schedule: <strong id="cfgSchedule">*/2 * * * *</strong></div>
+        <div class="cfg-item">💌 Cap: <strong id="cfgCap">200</strong>/day</div>
+      </div>
+
+      <button id="startBtn" onclick="startBot()">🔍 SEARCH &amp; AUDIT LEADS</button>
+      <p class="hint">Searches 11 cities → audits each site (SSL, speed, mobile) → fills your send queue</p>
+    </div>
+
+    <!-- RUNNING -->
+    <div id="stateRunning">
+      <div class="running-header">
+        <span class="live-badge">RUNNING</span>
+        <span class="phase-badge phase-search" id="phaseBadge">Searching</span>
+        <span class="running-timer mono" id="runningTimer">00:00</span>
+        <button class="btn btn-red" id="stopBtn" onclick="stopBot()" style="margin-left:auto">⏹ STOP</button>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-track"><div id="progressFill"></div></div>
+        <div class="progress-meta">
+          <span id="progressLabel">Starting...</span>
+          <span id="progressPct">0%</span>
+        </div>
+      </div>
+
+      <div class="stat-row" style="grid-template-columns:repeat(6,1fr)">
+        <div class="stat-card blue">  <span id="statFound">0</span>    <label>Found</label></div>
+        <div class="stat-card green"> <span id="statAudited">0</span>  <label>Audited</label></div>
+        <div class="stat-card purple"><span id="statQueued">0</span>   <label>Queued</label></div>
+        <div class="stat-card green"> <span id="statSent">0</span>     <label>Sent ✓</label></div>
+        <div class="stat-card orange"><span id="statSkip">0</span>     <label>Skipped</label></div>
+        <div class="stat-card" style="border-color:rgba(167,139,250,.25)"><span id="statAI" style="color:var(--purple)">0</span><label>AI Gen</label></div>
+      </div>
+
+      <div class="feed-header">Live Feed <span class="pulse-dot"></span></div>
+      <div id="liveFeed"></div>
+
+      <div style="display:flex;justify-content:flex-end">
+        <small style="color:var(--muted);font-size:10px">Search fills the queue. Auto-send drains it on schedule.</small>
+      </div>
+    </div>
+
+    <!-- COMPLETE / QUEUED -->
+    <div id="stateComplete">
+      <div class="complete-header">
+        <span style="font-size:26px">✅</span>
+        <h2>Leads Queued</h2>
+      </div>
+      <p class="complete-sub">Duration: <span id="duration">—</span> &nbsp;·&nbsp; Found: <span id="cFound">0</span> &nbsp;·&nbsp; Audited: <span id="cAudited">0</span></p>
+
+      <!-- Queue banner -->
+      <div class="queue-banner">
+        <div class="queue-banner-left">
+          <div class="queue-count" id="qBannerCount">0</div>
+          <div class="queue-label"><strong>Leads in Queue</strong>ready to send</div>
+        </div>
+        <div id="cronStatusBadge" class="cron-status-badge cron-off">⚡ Auto-Send OFF</div>
+      </div>
+
+      <div class="stat-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-card blue">  <span id="cFoundS">0</span>  <label>Found</label></div>
+        <div class="stat-card green"> <span id="cAuditedS">0</span><label>Audited</label></div>
+        <div class="stat-card purple"><span id="cQueuedS">0</span> <label>Queued</label></div>
+        <div class="stat-card green"> <span id="cSentS">0</span>   <label>Sent ✓</label></div>
+      </div>
+
+      <div class="complete-actions">
+        <button class="btn btn-blue" id="searchAgainBtn" onclick="showIdle()">🔍 Search Again</button>
+        <button class="btn btn-ai" id="aiAuditBtn" onclick="runAiAudit()">🤖 AI Audit &amp; Send (50)</button>
+        <button class="btn" id="cronStartBtn" onclick="toggleCron()">⚡ Start Auto-Send</button>
+        <button class="btn" onclick="window.open('/outreachbot/api/export')">📥 Export CSV</button>
+        <button class="btn" onclick="clearAll()">🗑 Clear All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCOUNT POOL (always visible) -->
+  <div style="margin-bottom:20px">
+    <div class="section-title">SMTP Account Pool</div>
+    <div class="panel" style="padding:14px 18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <span id="acctPoolSummary" style="font-size:12px;color:var(--muted)">Loading…</span>
+        <div class="acct-panel-controls">
+          <select class="sender-select" id="senderModeSelect" onchange="setSenderMode()">
+            <option value="rotation">🔄 Auto Rotation</option>
+          </select>
+          <button class="btn-test" id="testBtn" onclick="testAccounts()">⚡ Test Connections</button>
+          <span id="testStatus" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+      </div>
+      <div class="acct-list" id="acctList">
+        <div style="color:var(--muted);font-size:12px;padding:4px 0">
+          No accounts configured — set the <code style="background:var(--s2);padding:1px 6px;border-radius:3px;font-size:11px">SMTP_ACCOUNTS</code> secret with JSON: <code style="background:var(--s2);padding:1px 6px;border-radius:3px;font-size:11px">[{"user":"you@gmail.com","pass":"xxxx xxxx xxxx xxxx"}]</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAMPAIGNS -->
+  <div style="margin-bottom:20px">
+    <div class="section-title">Past Campaigns</div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Date</th><th>Found</th><th>Audited</th><th>Queued</th><th>Sent</th><th>Status</th></tr></thead>
+        <tbody id="campsBody"><tr><td colspan="6" class="empty-state">No campaigns yet.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- LEADS TABLE -->
+  <div>
+    <div class="section-title">Leads Database</div>
+    <div class="tabs">
+      <button id="tabAll"    class="tab active" onclick="loadLeads('all')">All</button>
+      <button id="tabSite"   class="tab"        onclick="loadLeads('has_website')">Has Website</button>
+      <button id="tabNoSite" class="tab"        onclick="loadLeads('no_website')">No Website</button>
+      <button id="tabSent"   class="tab"        onclick="loadLeads('sent')">Sent</button>
+      <button id="tabReview" class="tab"        onclick="loadLeads('review')" style="color:#f59e0b">Review</button>
+      <button id="tabSkipped" class="tab"       onclick="loadLeads('skipped')" style="color:#ef4444">Skipped</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Company</th><th>City</th><th>Sector</th>
+            <th>Score</th><th>Est. Loss/mo</th><th>Issues</th>
+            <th>Email</th><th>Rating</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="leadsBody">
+          <tr><td colspan="9" class="empty-state">No leads yet. Start the bot to search leads.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+var BASE = '/outreachbot';
+var startTime = null;
+var timerRef  = null;
+var currentFilter = 'all';
+var cronIsRunning = false;
+
+// ── SSE ──────────────────────────────────────────────────────
+var es = new EventSource(BASE + '/events');
+
+es.onmessage = function(e) {
+  var d = JSON.parse(e.data);
+  if (d.type === 'ping') return;
+  if (d.stats) updateStats(d.stats);
+  if (d.queueLeft != null) updateQueueUI(d.queueLeft);
+  if (d.accountCount != null) updateAccountCount(d.accountCount);
+  if (d.cronRunning != null) { cronIsRunning = d.cronRunning; updateCronUI(); }
+
+  switch (d.type) {
+    case 'connected':
+      if (d.running) { showRunning(); startTimer(); } else showIdle();
+      break;
+    case 'bot_start':
+      showRunning(); startTimer();
+      setPhaseBadge('search');
+      break;
+    case 'search_start':
+      setBar(Math.round(((d.step-1)/d.total)*50));
+      setLabel(d.message);
+      addLog(d.message, 'search');
+      setPhaseBadge('search');
+      break;
+    case 'search_done':
+      addLog(d.message, 'info');
+      if (d.step) setBar(Math.round((d.step/d.total)*50));
+      break;
+    case 'search_error':   addLog(d.message, 'error');  break;
+    case 'search_complete': setBar(50); setLabel(d.message); addLog(d.message, 'info'); break;
+    case 'audit_phase_start':
+      setLabel(d.message); addLog(d.message, 'info');
+      setPhaseBadge('audit');
+      break;
+    case 'auditing':
+      addLog('🔬 ' + d.message, 'audit');
+      break;
+    case 'audit_done':
+      var scoreStr = d.score != null ? ' [' + d.score + '/100]' : '';
+      addLog(d.message + scoreStr, 'audit');
+      break;
+    case 'progress':
+      setBar(d.progress);
+      if (d.total) setLabel('Processing ' + d.processed + '/' + d.total + '...');
+      break;
+    case 'email_sent':
+      var aiTag = d.aiGenerated ? ' 🤖' : '';
+      addLog('✅' + aiTag + ' ' + d.lead + ' (' + (d.city||'') + ') via ' + (d.account ? d.account.split('@')[0] : ''), 'sent');
+      if (d.aiGenerated) updateAICount(d.stats);
+      loadLeads();
+      break;
+    case 'email_error':    addLog(d.message, 'error');  break;
+    case 'email_skip':
+      addLog('⚠ ' + (d.message || ('Skipped: ' + d.lead)), 'warn');
+      loadLeads();
+      break;
+    case 'ai_generating':
+      addLog(d.message, 'ai');
+      break;
+    case 'ai_audit_start':
+      addLog('🤖 ' + d.message, 'ai');
+      var ab = document.getElementById('aiAuditBtn');
+      if (ab) { ab.disabled = true; ab.textContent = '🤖 AI Auditing...'; }
+      showRunning();
+      setBar(0); setLabel('AI Audit running...');
+      setPhaseBadge('audit');
+      break;
+    case 'ai_audit_progress':
+      var pct2 = d.total ? Math.round((d.processed/d.total)*100) : 0;
+      setBar(pct2);
+      setLabel('AI: ' + d.processed + '/' + d.total + ' · Sent: ' + d.sent + ' · Failed: ' + d.failed);
+      break;
+    case 'ai_audit_done':
+      addLog('🎉 ' + d.message, 'sent');
+      var ab2 = document.getElementById('aiAuditBtn');
+      if (ab2) { ab2.disabled = false; ab2.textContent = '🤖 AI Audit & Send (50)'; }
+      showComplete(d.stats || currentStats);
+      loadLeads(); loadCampaigns();
+      break;
+    case 'ai_audit_error':
+      addLog('✕ ' + d.message, 'error');
+      var ab3 = document.getElementById('aiAuditBtn');
+      if (ab3) { ab3.disabled = false; ab3.textContent = '🤖 AI Audit & Send (50)'; }
+      break;
+    case 'account_capped':
+      addLog('📊 ' + d.message, 'warn');
+      loadAccounts();
+      break;
+    case 'bounce_detected':
+      addLog('⚠ ' + d.message, 'warn');
+      break;
+    case 'bounce_cooldown':
+      addLog('🛑 ' + d.message, 'error');
+      var bCoolEl = document.getElementById('bounceBadge');
+      if (bCoolEl) { bCoolEl.style.display = 'flex'; bCoolEl.textContent = '🛑 Cooldown'; }
+      break;
+    case 'cap_reached':    addLog(d.message, 'warn');   break;
+    case 'account_error':
+      addLog('⚠ ' + d.message, 'error');
+      updateAccountBadge(d.account, 'error');
+      var errBadge = document.getElementById('accountErrBadge');
+      if (errBadge) errBadge.style.display = 'flex';
+      refreshAccountRow(d.account, 'error');
+      break;
+    case 'account_ok':
+      updateAccountBadge(d.account, 'ok');
+      refreshAccountRow(d.account, 'ok');
+      break;
+    case 'cron_start':
+      addLog('⚡ ' + d.message, 'cron');
+      cronIsRunning = true; updateCronUI();
+      break;
+    case 'cron_stop':
+      addLog('⏸ ' + d.message, 'info');
+      cronIsRunning = false; updateCronUI();
+      break;
+    case 'cron_idle':      addLog('⏳ ' + d.message, 'info');  break;
+    case 'cron_cap':       addLog('⚠ '  + d.message, 'warn');  break;
+    case 'cron_error':     addLog('✕ '  + d.message, 'error'); break;
+    case 'bot_complete':
+      stopTimer();
+      showComplete(d.stats);
+      loadLeads();
+      loadCampaigns();
+      break;
+    case 'bot_stopped':
+    case 'bot_error':
+      stopTimer(); showIdle();
+      addLog(d.message, 'error'); break;
+  }
+};
+
+// ── TIMER ──────────────────────────────────────────────────
+function startTimer() {
+  startTime = Date.now();
+  timerRef = setInterval(function() {
+    var ms = Date.now() - startTime;
+    var m = String(Math.floor(ms/60000)).padStart(2,'0');
+    var s = String(Math.floor((ms%60000)/1000)).padStart(2,'0');
+    var t = m+':'+s;
+    var rt = document.getElementById('runningTimer');
+    if (rt) rt.textContent = t;
+    document.getElementById('hTimer').textContent = t;
+    document.getElementById('hTimerWrap').style.display = 'flex';
+  }, 1000);
+}
+function stopTimer() {
+  clearInterval(timerRef);
+  document.getElementById('hTimerWrap').style.display = 'none';
+}
+
+// ── PROGRESS ──────────────────────────────────────────────
+function setBar(pct) {
+  pct = Math.min(pct||0, 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent  = pct + '%';
+}
+function setLabel(txt) { document.getElementById('progressLabel').textContent = txt||''; }
+
+function setPhaseBadge(phase) {
+  var el = document.getElementById('phaseBadge');
+  if (!el) return;
+  el.className = 'phase-badge phase-' + phase;
+  var labels = { search:'Searching', audit:'Auditing', queued:'Queued' };
+  el.textContent = labels[phase] || phase;
+}
+
+// ── STATS ─────────────────────────────────────────────────
+var currentStats = {};
+function updateStats(s) {
+  if (!s) return;
+  currentStats = s;
+  function set(id,v){ var el=document.getElementById(id); if(el) el.textContent=v||0; }
+  set('statFound',  s.found);
+  set('statAudited',s.audited);
+  set('statQueued', s.queued);
+  set('statSent',   s.sent);
+  set('statSkip',   s.skipped);
+  set('hSent',      s.sent);
+  set('statAI',     s.aiGenerated || 0);
+  updateAICount(s);
+  var foundEl = document.getElementById('liveFound');
+  if (foundEl) foundEl.textContent = (s.found || 0) + ' found';
+}
+
+function updateAICount(s) {
+  var n = (s && s.aiGenerated) ? s.aiGenerated : 0;
+  var el = document.getElementById('aiGenCount');
+  if (el) el.textContent = n > 0 ? ('×' + n) : '';
+}
+
+function updateQueueUI(n) {
+  var els = ['hQueue','cfgQueue','qBannerCount'];
+  els.forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent=n; });
+}
+
+function updateAccountCount(n) {
+  var el = document.getElementById('cfgAccounts');
+  if (el) el.textContent = n + ' configured';
+  var dot = document.querySelector('.cfg-item .dot2.green');
+  if (dot) dot.className = 'dot2 ' + (n>0?'green':'red');
+}
+
+// ── CRON UI ───────────────────────────────────────────────
+function updateCronUI() {
+  var toggle = document.getElementById('cronToggle');
+  var label  = document.getElementById('cronToggleLabel');
+  var badge  = document.getElementById('cronStatusBadge');
+  var btn    = document.getElementById('cronStartBtn');
+
+  if (cronIsRunning) {
+    if (toggle) { toggle.classList.add('active'); }
+    if (label)  { label.textContent = 'Auto-Send: ON'; }
+    if (badge)  { badge.className = 'cron-status-badge cron-on'; badge.textContent = '⚡ Auto-Send ACTIVE'; }
+    if (btn)    { btn.textContent = '⏸ Pause Auto-Send'; }
+  } else {
+    if (toggle) { toggle.classList.remove('active'); }
+    if (label)  { label.textContent = 'Auto-Send: OFF'; }
+    if (badge)  { badge.className = 'cron-status-badge cron-off'; badge.textContent = '⚡ Auto-Send OFF'; }
+    if (btn)    { btn.textContent = '⚡ Start Auto-Send'; }
+  }
+}
+
+async function toggleCron() {
+  var url = cronIsRunning ? BASE+'/api/cron/stop' : BASE+'/api/cron/start';
+  var r = await fetch(url, { method:'POST' });
+  var d = await r.json();
+  if (d.ok === false && d.error) { alert(d.error||'Could not start auto-send.'); }
+}
+
+// ── LIVE FEED ─────────────────────────────────────────────
+function ensureLiveHeader() {
+  var feed = document.getElementById('liveFeed');
+  if (!feed || document.getElementById('liveFeedHeader')) return;
+  var head = document.createElement('div');
+  head.id = 'liveFeedHeader';
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)';
+  head.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><span class="pulse-dot"></span><strong>Live Feed</strong><span id="liveFound" style="color:var(--muted);font-size:12px">0 found</span></div><button class="btn" style="padding:4px 10px;font-size:11px" onclick="document.getElementById(\'liveFeed\').innerHTML=\'\';document.getElementById(\'liveFound\').textContent=\'0 found\'">Clear</button>';
+  feed.parentNode.insertBefore(head, feed);
+}
+
+function addLog(msg, type) {
+  var feed = document.getElementById('liveFeed');
+  if (!feed) return;
+  ensureLiveHeader();
+  var now = new Date();
+  var ts  = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+  var line = document.createElement('div');
+  line.className = 'feed-line feed-'+(type||'info');
+  line.innerHTML = '<span class="feed-ts">'+ts+'</span><span class="feed-msg">'+esc(msg)+'</span>';
+  feed.appendChild(line);
+  while (feed.children.length > 120) feed.removeChild(feed.firstChild);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function addLiveSearchResult(name, city) {
+  var foundEl = document.getElementById('liveFound');
+  if (foundEl) {
+    var current = parseInt(foundEl.textContent, 10) || 0;
+    foundEl.textContent = (current + 1) + ' found';
+  }
+  addLog('Found: ' + name + ' (' + city + ')', 'search');
+}
+function pad(n){ return String(n).padStart(2,'0'); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── STATES ────────────────────────────────────────────────
+function showIdle() {
+  document.getElementById('stateIdle').style.display     = 'flex';
+  document.getElementById('stateRunning').style.display  = 'none';
+  document.getElementById('stateComplete').style.display = 'none';
+  document.getElementById('statusDot').classList.remove('live','orange');
+  document.getElementById('headerStatus').textContent = 'IDLE';
+}
+function showRunning() {
+  document.getElementById('stateIdle').style.display     = 'none';
+  document.getElementById('stateRunning').style.display  = 'block';
+  document.getElementById('stateComplete').style.display = 'none';
+  document.getElementById('statusDot').classList.add('live');
+  document.getElementById('headerStatus').textContent = 'RUNNING';
+}
+function showComplete(s) {
+  document.getElementById('stateIdle').style.display     = 'none';
+  document.getElementById('stateRunning').style.display  = 'none';
+  document.getElementById('stateComplete').style.display = 'block';
+  document.getElementById('statusDot').classList.remove('live');
+  document.getElementById('statusDot').classList.add('orange');
+  document.getElementById('headerStatus').textContent = 'QUEUED';
+  function set(id,v){ var el=document.getElementById(id); if(el) el.textContent=v||0; }
+  set('cFound',   s.found);   set('cFoundS',   s.found);
+  set('cAudited', s.audited); set('cAuditedS', s.audited);
+  set('cQueuedS', s.queued);  set('qBannerCount', s.queued);
+  set('cSentS',   s.sent);
+  if (startTime) {
+    var sec = Math.floor((Date.now()-startTime)/1000);
+    var dur = document.getElementById('duration');
+    if (dur) dur.textContent = Math.floor(sec/60)+'m '+(sec%60)+'s';
+  }
+  updateCronUI();
+}
+
+// ── BOT ACTIONS ───────────────────────────────────────────
+async function startBot() {
+  var r = await fetch(BASE+'/api/bot/start', { method:'POST' });
+  var d = await r.json();
+  if (d.error) { alert(d.error); return; }
+  showRunning(); startTimer();
+  document.getElementById('liveFeed').innerHTML = '';
+  setBar(0); setLabel('Starting...');
+  setPhaseBadge('search');
+}
+function stopBot() { fetch(BASE+'/api/bot/stop', { method:'POST' }); }
+async function clearAll() {
+  if (!confirm('Clear all leads and queue? Cannot be undone.')) return;
+  await fetch(BASE+'/api/leads', { method:'DELETE' });
+  loadLeads(); loadCampaigns(); updateQueueUI(0);
+}
+
+// ── AI AUDIT & SEND ────────────────────────────────────────
+async function runAiAudit() {
+  var btn = document.getElementById('aiAuditBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '🤖 Starting AI Audit...'; }
+  try {
+    var r = await fetch(BASE+'/api/ai-audit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ limit: 50 }) });
+    var d = await r.json();
+    if (d.error) {
+      alert('AI Audit Error: ' + d.error);
+      if (btn) { btn.disabled = false; btn.textContent = '🤖 AI Audit & Send (50)'; }
+      return;
+    }
+    document.getElementById('liveFeed').innerHTML = '';
+    addLog('🤖 AI Audit started — processing up to 50 leads...', 'ai');
+  } catch(e) {
+    alert('Error starting AI Audit: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 AI Audit & Send (50)'; }
+  }
+}
+
+// ── LEADS TABLE ───────────────────────────────────────────
+async function loadLeads(filter) {
+  filter = filter || currentFilter; currentFilter = filter;
+  ['All','Site','NoSite','Sent','Review','Skipped'].forEach(function(t){
+    var el = document.getElementById('tab'+t);
+    if (el) el.classList.remove('active');
+  });
+  var map = { all:'All', has_website:'Site', no_website:'NoSite', sent:'Sent', review:'Review', skipped:'Skipped' };
+  var at  = document.getElementById('tab'+(map[filter]||'All'));
+  if (at) at.classList.add('active');
+  try {
+    var qs    = filter==='all' ? '' : '?filter='+filter;
+    var leads = await fetch(BASE+'/api/leads'+qs).then(function(r){return r.json();});
+    renderLeads(leads);
+    var all   = await fetch(BASE+'/api/leads').then(function(r){return r.json();});
+    var sent    = all.filter(function(l){return l.emailSent;}).length;
+    var review  = all.filter(function(l){return l.reviewRequired && !l.skippedLowLoss;}).length;
+    var skipped = all.filter(function(l){return l.skippedLowLoss || (l.emailStatus && l.emailStatus.indexOf('Low Loss')!==-1);}).length;
+    document.getElementById('tabAll').textContent     = 'All ('+all.length+')';
+    document.getElementById('tabSite').textContent    = 'Has Website ('+all.filter(function(l){return l.hasWebsite;}).length+')';
+    document.getElementById('tabNoSite').textContent  = 'No Website ('+all.filter(function(l){return !l.hasWebsite;}).length+')';
+    document.getElementById('tabSent').textContent    = 'Sent ('+sent+')';
+    document.getElementById('tabReview').textContent  = 'Review ('+review+')';
+    document.getElementById('tabSkipped').textContent = 'Skipped ('+skipped+')';
+    document.getElementById('hSent').textContent      = sent;
+  } catch(e){}
+}
+
+function renderLeads(leads) {
+  var tbody = document.getElementById('leadsBody');
+  if (!tbody) return;
+  if (!leads||!leads.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No leads here yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = leads.map(function(l) {
+    // Score badge
+    var scoreBadge = '';
+    if (l.score != null) {
+      var cls = l.score < 60 ? 'score-crit' : l.score < 80 ? 'score-warn' : 'score-ok';
+      scoreBadge = '<span class="score-badge '+cls+'">'+l.score+'</span>';
+    } else if (l.hasWebsite) {
+      scoreBadge = '<span class="score-badge score-na">—</span>';
+    } else {
+      scoreBadge = '<span class="score-badge score-na">N/A</span>';
+    }
+
+    // Estimated loss
+    var lossCell = '';
+    if (l.estimatedLoss && l.estimatedLoss > 0) {
+      var lossVal = '$' + Number(l.estimatedLoss).toLocaleString('en-US') + '/mo';
+      var lossCls = l.estimatedLoss >= 3000 ? 'score-crit' : l.estimatedLoss >= 1500 ? 'score-warn' : 'score-na';
+      lossCell = '<span class="score-badge '+lossCls+'" style="font-size:10px;min-width:56px">'+lossVal+'</span>';
+    } else {
+      lossCell = '<span style="color:var(--muted);font-size:11px">—</span>';
+    }
+
+    // Issue pills
+    var pills = '';
+    if (l.audit) {
+      if (!l.audit.ssl)              pills += '<span class="pill pill-ssl">No SSL</span>';
+      if (l.audit.underConstruction) pills += '<span class="pill pill-uc">🚧 UC</span>';
+      if (l.audit.noMobile)          pills += '<span class="pill pill-mob">Mobile</span>';
+      if (l.audit.speedMs > 3000)    pills += '<span class="pill pill-slow">'+Number((l.audit.speedMs/1000).toFixed(1))+'s</span>';
+    }
+
+    // Email / website
+    var emailCell = l.email ? '<span class="mono" style="color:var(--muted)">'+esc(l.email)+'</span>' : '<span style="color:var(--muted)">—</span>';
+    var statusText = l.emailStatus || (l.emailSent ? 'Sent: High-Value Pitch' : 'Pending');
+    var statusCls;
+    if (l.emailSent) {
+      statusCls = 'badge-green';
+    } else if (l.skippedLowLoss || (l.emailStatus && l.emailStatus.indexOf('Low Loss') !== -1)) {
+      statusCls = 'badge-red';
+    } else if (l.reviewRequired || (l.emailStatus && l.emailStatus.indexOf('Manual Review') !== -1)) {
+      statusCls = 'badge-orange';
+    } else {
+      statusCls = 'badge-gray';
+    }
+    var statusBadge = '<span class="badge '+statusCls+'">'+esc(statusText)+(l.accountUsed?'<br><span style="font-weight:400;opacity:.7">'+esc(l.accountUsed.split('@')[0])+'</span>':'')+'</span>';
+
+    return '<tr>'
+      +'<td style="font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(l.company||'')+'</td>'
+      +'<td style="white-space:nowrap">'+esc(l.city||'')+'</td>'
+      +'<td><span class="badge badge-gray">'+esc((l.sector||'').substring(0,20))+'</span></td>'
+      +'<td>'+scoreBadge+'</td>'
+      +'<td>'+lossCell+'</td>'
+      +'<td><div class="issue-pills">'+pills+'</div></td>'
+      +'<td>'+emailCell+'</td>'
+      +'<td>'+stars(l.rating)+'<span class="mono" style="color:var(--muted);margin-left:3px;font-size:9px">'+(l.reviewsCount||0)+'</span></td>'
+      +'<td>'+statusBadge+'</td>'
+      +'</tr>';
+  }).join('');
+}
+
+function stars(r) {
+  var n = Math.round(r||0);
+  return '<span class="stars">'+'★'.repeat(Math.max(0,n))+'<span style="opacity:.2">'+'★'.repeat(Math.max(0,5-n))+'</span></span>';
+}
+
+// ── CAMPAIGNS ─────────────────────────────────────────────
+async function loadCampaigns() {
+  try {
+    var camps = await fetch(BASE+'/api/campaigns').then(function(r){return r.json();});
+    var tbody = document.getElementById('campsBody');
+    if (!tbody) return;
+    if (!camps||!camps.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No campaigns yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = camps.slice(0,10).map(function(c) {
+      var cls = c.status==='queued'?'badge-blue':c.status==='completed'?'badge-green':c.status==='aborted'?'badge-orange':'badge-gray';
+      var d = new Date(c.startedAt);
+      return '<tr>'
+        +'<td>'+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</td>'
+        +'<td class="mono">'+(c.stats.found||0)+'</td>'
+        +'<td class="mono" style="color:var(--purple)">'+(c.stats.audited||0)+'</td>'
+        +'<td class="mono" style="color:var(--blue)">'+(c.stats.queued||0)+'</td>'
+        +'<td class="mono" style="color:var(--green)">'+(c.stats.sent||0)+'</td>'
+        +'<td><span class="badge '+cls+'">'+c.status+'</span></td>'
+        +'</tr>';
+    }).join('');
+  } catch(e){}
+}
+
+// ── ACCOUNT POOL ──────────────────────────────────────────
+var _accountsCache = [];
+
+async function loadAccounts() {
+  try {
+    var accts = await fetch(BASE+'/api/accounts').then(function(r){return r.json();});
+    _accountsCache = accts || [];
+    renderAccountList(accts);
+    updateSenderModeDropdown(accts);
+    // Check if any error exists to show header badge
+    var hasErr = accts.some(function(a){ return a.status === 'error'; });
+    var badge = document.getElementById('accountErrBadge');
+    if (badge) badge.style.display = hasErr ? 'flex' : 'none';
+    // Summary
+    var ok = accts.filter(function(a){ return a.status==='ok'; }).length;
+    var err = accts.filter(function(a){ return a.status==='error'; }).length;
+    var sum = document.getElementById('acctPoolSummary');
+    if (sum) {
+      if (!accts.length) { sum.textContent = 'No accounts'; sum.style.color = 'var(--red)'; }
+      else if (err) { sum.textContent = ok+' OK, '+err+' Error'; sum.style.color = 'var(--red)'; }
+      else if (ok) { sum.textContent = ok+' / '+accts.length+' OK'; sum.style.color = 'var(--green)'; }
+      else { sum.textContent = accts.length+' configured'; sum.style.color = 'var(--muted)'; }
+    }
+    updateAccountCount(accts.length);
+  } catch(e){}
+}
+
+function renderAccountList(accts) {
+  var list = document.getElementById('acctList');
+  if (!list) return;
+  if (!accts || !accts.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">No accounts configured — set <code style="background:var(--surface);padding:1px 5px;border-radius:3px">SMTP_ACCOUNTS</code> secret.</div>';
+    return;
+  }
+  list.innerHTML = accts.map(function(a) {
+    var dotCls = a.capped ? 'warn' : a.status === 'ok' ? 'ok' : a.status === 'error' ? 'error' : 'unknown';
+    var lbl = a.capped
+      ? '<span class="acct-status-lbl" style="color:#f59e0b">⏸ Cap reached</span>'
+      : a.status === 'ok' ? '<span class="acct-status-lbl ok">✓ OK</span>'
+      : a.status === 'error' ? '<span class="acct-badge-err">✕ Auth Error</span>'
+      : '<span class="acct-status-lbl" style="color:var(--muted)">Unknown</span>'; 
+    var cap = a.dailyCap || 100;
+    var sent = a.sentToday || 0;
+    var pct = Math.min(Math.round((sent / cap) * 100), 100);
+    var barColor = pct >= 100 ? '#f59e0b' : pct > 70 ? '#eab308' : '#22c55e';
+    var dailyBar = '<div style="display:flex;align-items:center;gap:5px;margin-top:2px">'
+      +'<div style="flex:1;height:4px;background:var(--surface);border-radius:2px;overflow:hidden">'
+      +'<div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:2px;transition:width 0.3s"></div></div>'
+      +'<span style="color:var(--muted);font-size:10px;white-space:nowrap">'+sent+'/'+cap+'</span>'
+      +'</div>';
+    var selectedCls = a.selected ? ' acct-selected' : '';
+    return '<div class="acct-row'+selectedCls+'" id="acct-row-'+encodeURIComponent(a.user)+'">'
+      +'<span class="acct-dot '+dotCls+'"></span>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between">'
+      +'<span class="acct-user">'+esc(a.user.split('@')[0])+'<span style="color:var(--muted)">@'+esc(a.user.split('@')[1]||'')+'</span></span>'
+      +lbl
+      +'</div>'
+      +dailyBar
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function refreshAccountRow(user, status) {
+  var updated = _accountsCache.map(function(a){ return a.user===user ? Object.assign({},a,{status:status}) : a; });
+  _accountsCache = updated;
+  renderAccountList(updated);
+  var sum = document.getElementById('acctPoolSummary');
+  if (sum) {
+    var ok = updated.filter(function(a){ return a.status==='ok'; }).length;
+    var err = updated.filter(function(a){ return a.status==='error'; }).length;
+    if (err) { sum.textContent = ok+' OK, '+err+' Error'; sum.style.color = 'var(--red)'; }
+    else if (ok) { sum.textContent = ok+' / '+updated.length+' OK'; sum.style.color = 'var(--green)'; }
+  }
+}
+
+function updateAccountBadge(user, status) {
+  var id = 'acct-row-' + encodeURIComponent(user);
+  var row = document.getElementById(id);
+  if (!row) return;
+  var dot = row.querySelector('.acct-dot');
+  if (dot) { dot.className = 'acct-dot ' + (status||'unknown'); }
+}
+
+function updateSenderModeDropdown(accts) {
+  var sel = document.getElementById('senderModeSelect');
+  if (!sel) return;
+  // Rebuild options: rotation + one per account
+  var prev = sel.value;
+  sel.innerHTML = '<option value="rotation">🔄 Auto Rotation</option>';
+  (accts||[]).forEach(function(a){
+    var opt = document.createElement('option');
+    opt.value = 'specific:' + a.user;
+    opt.textContent = '📧 ' + a.user;
+    if (a.selected) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (prev && prev !== 'rotation') sel.value = prev;
+}
+
+async function setSenderMode() {
+  var sel = document.getElementById('senderModeSelect');
+  if (!sel) return;
+  var val = sel.value;
+  var body = val === 'rotation' ? { mode:'rotation' } : { mode:'specific', account: val.replace('specific:','') };
+  try {
+    await fetch(BASE+'/api/config/sender', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    // Update selection highlight
+    _accountsCache = _accountsCache.map(function(a){ return Object.assign({}, a, { selected: body.mode==='specific' && a.user===body.account }); });
+    renderAccountList(_accountsCache);
+  } catch(e){}
+}
+
+async function testAccounts() {
+  var btn = document.getElementById('testBtn');
+  var status = document.getElementById('testStatus');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Testing…'; }
+  if (status) status.textContent = '';
+  try {
+    var res = await fetch(BASE+'/api/accounts/test', { method:'POST' }).then(function(r){return r.json();});
+    if (res.error) { if (status) { status.textContent = '✕ ' + res.error; status.style.color = 'var(--red)'; } }
+    else {
+      var ok  = res.results.filter(function(r){ return r.status==='ok'; }).length;
+      var err = res.results.filter(function(r){ return r.status==='error'; }).length;
+      if (status) {
+        status.textContent = ok + ' OK' + (err ? ', ' + err + ' failed' : '');
+        status.style.color = err > 0 ? 'var(--orange)' : 'var(--green)';
+      }
+      // Re-render rows based on test results
+      res.results.forEach(function(r){ refreshAccountRow(r.user, r.status); });
+      var hasErr = err > 0;
+      var badge = document.getElementById('accountErrBadge');
+      if (badge) badge.style.display = hasErr ? 'flex' : 'none';
+    }
+  } catch(e) {
+    if (status) { status.textContent = '✕ Request failed'; status.style.color = 'var(--red)'; }
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '⚡ Test Connections'; }
+}
+
+// ── CONFIG STRIP ──────────────────────────────────────────
+async function loadConfig() {
+  try {
+    var cfg = await fetch(BASE+'/api/config').then(function(r){return r.json();});
+    var el;
+    el = document.getElementById('cfgAccounts');
+    if (el) el.textContent = cfg.accountCount + ' configured';
+    el = document.getElementById('cfgQueue');
+    if (el) el.textContent = cfg.queueLeft || 0;
+    el = document.getElementById('cfgSchedule');
+    if (el) el.textContent = cfg.schedule;
+    el = document.getElementById('cfgCap');
+    if (el) el.textContent = cfg.dailyCap;
+    el = document.getElementById('hQueue');
+    if (el) el.textContent = cfg.queueLeft || 0;
+    cronIsRunning = cfg.cronRunning;
+    updateCronUI();
+    updateAccountCount(cfg.accountCount);
+  } catch(e){}
+}
+
+// ── AI BADGE DISPLAY ──────────────────────────────────────
+function showAIBadge(active, count) {
+  var badge = document.getElementById('aiBadge');
+  var chip  = document.getElementById('aiChip');
+  var btn   = document.getElementById('aiAuditBtn');
+  if (badge) badge.style.display = active ? 'flex' : 'none';
+  if (chip)  { chip.style.opacity = active ? '1' : '0.35'; chip.textContent = active ? '🤖 AI: Gemini' : '🤖 AI: OFF'; }
+  if (btn)   { btn.style.display = active ? 'inline-flex' : 'none'; }
+  var cnt = document.getElementById('aiGenCount');
+  if (cnt && count) cnt.textContent = count > 0 ? ('×' + count) : '';
+}
+
+// ── INIT ──────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async function() {
+  Notification.requestPermission && Notification.requestPermission();
+  try {
+    var st = await fetch(BASE+'/api/bot/status').then(function(r){return r.json();});
+    cronIsRunning = st.cronRunning;
+    updateCronUI();
+    // Show AI badge based on server status
+    showAIBadge(!!st.aiActive, st.aiGeneratedCount || 0);
+    if (st.stats) updateStats(st.stats);
+    if (st.running) { showRunning(); startTimer(); }
+    else if (st.queueLeft > 0) {
+      showComplete(st.stats || { found:0, audited:0, queued:st.queueLeft, sent:st.sentCount||0 });
+    } else showIdle();
+    updateQueueUI(st.queueLeft||0);
+    updateAccountCount(st.accountCount||0);
+  } catch(e) { showIdle(); }
+  loadConfig();
+  loadAccounts();
+  loadLeads();
+  loadCampaigns();
+  // Load AI status separately
+  try {
+    var ai = await fetch(BASE+'/api/ai/status').then(function(r){return r.json();});
+    showAIBadge(ai.aiActive, ai.aiGeneratedCount || 0);
+  } catch(e){}
+});
+</script>
+</body>
+</html>
