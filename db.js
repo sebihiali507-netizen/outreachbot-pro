@@ -3,12 +3,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-// التعديل في السطر 7: استخدام المسار المطلق للـ Volume مباشرة
-'use strict';
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
-
+// إعداد مسار البيانات بما يتوافق مع Volume الخاص بـ Railway
 const DATA_DIR = '/app/data';
 
 if (!fs.existsSync(DATA_DIR)) {
@@ -17,33 +12,26 @@ if (!fs.existsSync(DATA_DIR)) {
 
 const DB_FILE = path.join(DATA_DIR, 'outreachbot.db');
 
-// دالة للاتصال تضمن وجود الكائن db قبل استخدامه
+// دالة الاتصال: تعالج مشكلة تأخر ربط الـ Volume عند بدء التشغيل
 function connect() {
     try {
-        // زيادة الـ timeout لـ 10 ثوانٍ لضمان جاهزية الـ Volume
+        // مهلة 10 ثوانٍ لضمان جاهزية النظام
         return new Database(DB_FILE, { timeout: 10000 });
     } catch (err) {
-        console.error('[DB] Failed to connect, retrying in 2s...', err.message);
-        // في حال الفشل الصادم، نخرج ليعيد Railway تشغيل الحاوية (Restart Strategy)
+        console.error('[DB] Failed to connect, retrying...', err.message);
+        // نخرج بكود 1 ليعيد Railway تشغيل الحاوية تلقائياً (Restart Strategy)
         process.exit(1); 
     }
 }
 
 const db = connect();
 
+// إعدادات تحسين الأداء لـ SQLite
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 if (process.env.NODE_ENV === 'production') {
     console.log(`[DB] Production mode — database: ${DB_FILE}, data dir: ${DATA_DIR}`);
-}
-
-// ... بقية الـ SCHEMA والوظائف
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-
-if (process.env.NODE_ENV === 'production') {
-  console.log(`[DB] Production mode — database: ${DB_FILE}, data dir: ${DATA_DIR}`);
 }
 
 // ── SCHEMA ────────────────────────────────────────────────────
@@ -138,7 +126,7 @@ INSERT OR IGNORE INTO ab_results(variant, sent, opened, replied) VALUES
   ('C', 0, 0, 0);
 `);
 
-// ── CONTACTS ──────────────────────────────────────────────────
+// ── CONTACTS FUNCTIONS ─────────────────────────────────────────
 const contactsGet = db.prepare('SELECT * FROM contacts WHERE id = ?');
 const contactsAll = db.prepare('SELECT * FROM contacts ORDER BY created_at DESC');
 const contactsInsert = db.prepare(`
@@ -211,7 +199,6 @@ function getSequenceLog(contactId) {
   return db.prepare('SELECT * FROM sequence_log WHERE contact_id=? ORDER BY sent_at DESC').all(contactId);
 }
 
-// Contacts ready for each follow-up stage
 function getContactsReadyForStage(stage, daysAfterPrev) {
   return db.prepare(`
     SELECT * FROM contacts
@@ -305,7 +292,7 @@ function insertServicesLead(l) {
   db.prepare(`INSERT INTO services_leads(id,name,email,website,message) VALUES(@id,@name,@email,@website,@message)`).run(l);
 }
 
-// ── CONTACT MEMORY (Anti-Dup + Persistence) ──────────────────
+// ── CONTACT MEMORY (Anti-Dup) ──────────────────
 const memoryGetByPhone = db.prepare('SELECT * FROM contact_memory WHERE phone = ?');
 const memoryInsert = db.prepare(`
   INSERT OR IGNORE INTO contact_memory(phone, lead_id, company, city, sector, lang, has_website, first_seen, last_contacted, contact_count, status, notes)
@@ -318,7 +305,6 @@ const memoryUpdate = db.prepare(`
     contact_count=@contact_count, status=@status, notes=@notes
   WHERE phone=@phone
 `);
-const memoryCountByPhone = db.prepare('SELECT COUNT(*) as n FROM contact_memory WHERE phone = ?');
 const memoryCountNew = db.prepare("SELECT COUNT(*) as n FROM contact_memory WHERE status = 'new' AND has_website = 0");
 const memoryAll = db.prepare('SELECT * FROM contact_memory ORDER BY first_seen DESC LIMIT 500');
 
@@ -329,8 +315,7 @@ function getMemoryByPhone(phone) {
 
 function isDuplicatePhone(phone) {
   if (!phone || phone.trim().length < 5) return false;
-  const row = memoryGetByPhone.get(phone.trim());
-  return !!row;
+  return !!memoryGetByPhone.get(phone.trim());
 }
 
 function recordMemory(entry) {
@@ -377,29 +362,19 @@ function markContacted(phone, contactedAt) {
   const existing = memoryGetByPhone.get(normalizedPhone);
   if (existing) {
     memoryUpdate.run({
-      lead_id: existing.lead_id,
-      company: existing.company,
-      city: existing.city,
-      sector: existing.sector,
-      lang: existing.lang,
-      has_website: existing.has_website,
+      ...existing,
       last_contacted: contactedAt || new Date().toISOString(),
       contact_count: (existing.contact_count || 0) + 1,
       status: 'contacted',
-      notes: existing.notes,
       phone: normalizedPhone
     });
   }
 }
 
-function getNewNoWebsiteCount() {
-  return memoryCountNew.get();
-}
+function getNewNoWebsiteCount() { return memoryCountNew.get(); }
+function getAllMemory() { return memoryAll.all(); }
 
-function getAllMemory() {
-  return memoryAll.all();
-}
-
+// ── EXPORTS ───────────────────────────────────────────────────
 module.exports = {
   db,
   getContact, getAllContacts, upsertContact, updateContact, deleteContact,
@@ -410,7 +385,6 @@ module.exports = {
   addRevenue, getRevenueSummary, getRevenueByMonth,
   getPipelineStats, insertServicesLead,
   contactsCount,
-  // Contact Memory (Anti-Dup + Persistence)
   getMemoryByPhone, isDuplicatePhone, recordMemory, markContacted,
   getNewNoWebsiteCount, getAllMemory
 };
