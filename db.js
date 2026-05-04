@@ -3,9 +3,14 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+// التعديل في السطر 7: استخدام المسار المطلق للـ Volume مباشرة
+const DATA_DIR = '/app/data'; 
 
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// التعديل في السطر 10: التأكد من اسم قاعدة البيانات
 const DB_FILE = path.join(DATA_DIR, 'outreachbot.db');
 const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
