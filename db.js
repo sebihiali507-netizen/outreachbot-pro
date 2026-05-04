@@ -4,15 +4,41 @@ const path = require('path');
 const fs = require('fs');
 
 // التعديل في السطر 7: استخدام المسار المطلق للـ Volume مباشرة
-const DATA_DIR = '/app/data'; 
+'use strict';
+const Database = require('better-sqlite3');
+const path = require('path');
+const fs = require('fs');
+
+const DATA_DIR = '/app/data';
 
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-// التعديل في السطر 10: التأكد من اسم قاعدة البيانات
 const DB_FILE = path.join(DATA_DIR, 'outreachbot.db');
-const db = new Database(DB_FILE);
+
+// دالة للاتصال تضمن وجود الكائن db قبل استخدامه
+function connect() {
+    try {
+        // زيادة الـ timeout لـ 10 ثوانٍ لضمان جاهزية الـ Volume
+        return new Database(DB_FILE, { timeout: 10000 });
+    } catch (err) {
+        console.error('[DB] Failed to connect, retrying in 2s...', err.message);
+        // في حال الفشل الصادم، نخرج ليعيد Railway تشغيل الحاوية (Restart Strategy)
+        process.exit(1); 
+    }
+}
+
+const db = connect();
+
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
+
+if (process.env.NODE_ENV === 'production') {
+    console.log(`[DB] Production mode — database: ${DB_FILE}, data dir: ${DATA_DIR}`);
+}
+
+// ... بقية الـ SCHEMA والوظائف
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
